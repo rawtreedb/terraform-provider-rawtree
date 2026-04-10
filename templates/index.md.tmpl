@@ -1,0 +1,24 @@
+---
+page_title: "Rawtree Provider"
+subcategory: ""
+description: |-
+  The Rawtree provider enables automated data ingestion from AWS S3 into Rawtree.
+---
+
+# Rawtree Provider
+
+The Rawtree provider enables automated data ingestion from AWS S3 into [Rawtree](https://rawtree.dev), a schemaless analytical database.
+
+## Authentication
+
+The provider resolves credentials in this order:
+
+1. Provider configuration block
+2. Environment variables (`RAWTREE_API_KEY`, `RAWTREE_URL`, `RAWTREE_ORG`, `RAWTREE_PROJECT`)
+3. Rawtree CLI config file (`~/.config/rtree/config.json`)
+
+## Example Usage
+
+{{ tffile "examples/provider/main.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}
