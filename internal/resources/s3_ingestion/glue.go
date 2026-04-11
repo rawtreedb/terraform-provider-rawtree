@@ -5,39 +5,18 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 //go:embed scripts/glue_job.py
 var glueJobScript []byte
 
-// createScriptBucket creates an S3 bucket to store the Glue job script.
-func createScriptBucket(ctx context.Context, s3Client *s3.Client, bucketName, region string) error {
-	input := &s3.CreateBucketInput{
-		Bucket: aws.String(bucketName),
-	}
-
-	// Only set LocationConstraint for non-us-east-1 regions.
-	if region != "us-east-1" {
-		input.CreateBucketConfiguration = &s3types.CreateBucketConfiguration{
-			LocationConstraint: s3types.BucketLocationConstraint(region),
-		}
-	}
-
-	_, err := s3Client.CreateBucket(ctx, input)
-	if err != nil {
-		return fmt.Errorf("creating script bucket: %w", err)
-	}
-
-	return nil
-}
-
-// uploadGlueScript uploads the embedded Glue job script to S3.
+// uploadGlueScript uploads the embedded Glue job script to S3 and verifies it exists.
 func uploadGlueScript(ctx context.Context, s3Client *s3.Client, bucket, key string) error {
 	_, err := s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(bucket),
@@ -47,7 +26,20 @@ func uploadGlueScript(ctx context.Context, s3Client *s3.Client, bucket, key stri
 	if err != nil {
 		return fmt.Errorf("uploading Glue script: %w", err)
 	}
-	return nil
+
+	// Verify the object is readable before Glue tries to download it.
+	for i := 0; i < 5; i++ {
+		_, err := s3Client.HeadObject(ctx, &s3.HeadObjectInput{
+			Bucket: aws.String(bucket),
+			Key:    aws.String(key),
+		})
+		if err == nil {
+			return nil
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	return fmt.Errorf("script uploaded but HeadObject verification failed after 5 attempts for s3://%s/%s", bucket, key)
 }
 
 // createGlueJob creates an AWS Glue job for batch S3 ingestion.
@@ -91,8 +83,43 @@ func startGlueJobRun(ctx context.Context, glueClient *glue.Client, jobName strin
 	return aws.ToString(out.JobRunId), nil
 }
 
-// deleteGlueJob deletes the Glue job.
+// stopRunningGlueJobRuns stops any active runs before deleting the job.
+// In tests, destroy runs seconds after create so jobs are always still running.
+// In production, jobs complete long before destroy and this is a no-op.
+func stopRunningGlueJobRuns(ctx context.Context, glueClient *glue.Client, jobName string) {
+	runs, err := glueClient.GetJobRuns(ctx, &glue.GetJobRunsInput{
+		JobName:    aws.String(jobName),
+		MaxResults: aws.Int32(10),
+	})
+	if err != nil {
+		return
+	}
+
+	var activeIDs []string
+	for _, run := range runs.JobRuns {
+		s := run.JobRunState
+		if s == gluetypes.JobRunStateRunning || s == gluetypes.JobRunStateStarting || s == gluetypes.JobRunStateWaiting {
+			activeIDs = append(activeIDs, aws.ToString(run.Id))
+		}
+	}
+
+	if len(activeIDs) == 0 {
+		return
+	}
+
+	glueClient.BatchStopJobRun(ctx, &glue.BatchStopJobRunInput{
+		JobName:   aws.String(jobName),
+		JobRunIds: activeIDs,
+	})
+
+	// Wait for the stop to take effect before deleting the script.
+	time.Sleep(5 * time.Second)
+}
+
+// deleteGlueJob stops active runs then deletes the Glue job.
 func deleteGlueJob(ctx context.Context, glueClient *glue.Client, jobName string) error {
+	stopRunningGlueJobRuns(ctx, glueClient, jobName)
+
 	_, err := glueClient.DeleteJob(ctx, &glue.DeleteJobInput{
 		JobName: aws.String(jobName),
 	})
@@ -102,17 +129,14 @@ func deleteGlueJob(ctx context.Context, glueClient *glue.Client, jobName string)
 	return nil
 }
 
-// deleteScriptBucket deletes the script object and bucket.
-func deleteScriptBucket(ctx context.Context, s3Client *s3.Client, bucket, key string) error {
-	_, _ = s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+// deleteGlueScriptObject deletes the Glue script from the source bucket.
+func deleteGlueScriptObject(ctx context.Context, s3Client *s3.Client, bucket, key string) error {
+	_, err := s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
-	_, err := s3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{
-		Bucket: aws.String(bucket),
-	})
 	if err != nil {
-		return fmt.Errorf("deleting script bucket: %w", err)
+		return fmt.Errorf("deleting Glue script object: %w", err)
 	}
 	return nil
 }

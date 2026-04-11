@@ -71,8 +71,10 @@ func createGlueRole(ctx context.Context, client *iam.Client, resourceName, bucke
 	}
 
 	// Create inline S3 read policy.
+	// Always include .rawtree/* for the Glue script stored in the source bucket.
 	s3Resources := []string{
 		fmt.Sprintf("arn:aws:s3:::%s", bucket),
+		fmt.Sprintf("arn:aws:s3:::%s/.rawtree/*", bucket),
 	}
 	if prefix != "" {
 		s3Resources = append(s3Resources, fmt.Sprintf("arn:aws:s3:::%s/%s*", bucket, prefix))

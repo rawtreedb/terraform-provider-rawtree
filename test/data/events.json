@@ -1,0 +1,7 @@
+[
+  {"timestamp": "2024-01-15T10:30:00Z", "event": "page_view", "user_id": "user_001", "page": "/home", "duration_ms": 1200},
+  {"timestamp": "2024-01-15T10:31:00Z", "event": "click", "user_id": "user_001", "page": "/home", "element": "cta_button"},
+  {"timestamp": "2024-01-15T10:32:00Z", "event": "page_view", "user_id": "user_002", "page": "/pricing", "duration_ms": 4500},
+  {"timestamp": "2024-01-15T10:33:00Z", "event": "signup", "user_id": "user_002", "page": "/signup", "plan": "pro"},
+  {"timestamp": "2024-01-15T10:34:00Z", "event": "page_view", "user_id": "user_003", "page": "/docs", "duration_ms": 8200}
+]

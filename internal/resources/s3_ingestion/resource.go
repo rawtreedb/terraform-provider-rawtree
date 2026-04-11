@@ -2,8 +2,13 @@ package s3_ingestion
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
@@ -13,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/client"
 )
@@ -68,11 +74,8 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	format := plan.Format.ValueString()
 	filePattern := plan.FilePattern.ValueString()
 
-	// Generate unique resource name.
-	resourceName := fmt.Sprintf("%s-%s-%s", r.client.Organization, r.client.Project, table)
-	if len(resourceName) > 40 {
-		resourceName = resourceName[:40]
-	}
+	// Generate unique resource name (S3-safe: lowercase, alphanumeric, hyphens, max 40 chars).
+	resourceName := sanitizeResourceName(fmt.Sprintf("%s-%s-%s", r.client.Organization, r.client.Project, table))
 
 	// Initialize AWS clients.
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
@@ -88,6 +91,13 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	ebClient := eventbridge.NewFromConfig(awsCfg)
 
 	state := awsResourceState{Region: region}
+
+	// Store the Glue script in the source bucket under .rawtree/ prefix.
+	// This avoids creating a separate bucket and ensures the Glue role already has access.
+	scriptBucket := bucket
+	scriptKey := fmt.Sprintf(".rawtree/glue-scripts/%s/glue_job.py", resourceName)
+	state.ScriptBucket = scriptBucket
+	state.ScriptKey = scriptKey
 
 	// Step 1: Create IAM roles.
 	glueRoleARN, glueRoleName, gluePolicyARN, err := createGlueRole(ctx, iamClient, resourceName, bucket, prefix)
@@ -108,17 +118,7 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	state.LambdaRoleName = lambdaRoleName
 	state.LambdaPolicyARN = lambdaPolicyARN
 
-	// Step 2: Upload Glue script to S3.
-	scriptBucket := fmt.Sprintf("rawtree-glue-scripts-%s", resourceName)
-	scriptKey := "glue_job.py"
-	state.ScriptBucket = scriptBucket
-	state.ScriptKey = scriptKey
-
-	if err := createScriptBucket(ctx, s3Client, scriptBucket, region); err != nil {
-		resp.Diagnostics.AddError("Failed to create script bucket", err.Error())
-		return
-	}
-
+	// Step 2: Upload Glue script to source bucket.
 	if err := uploadGlueScript(ctx, s3Client, scriptBucket, scriptKey); err != nil {
 		resp.Diagnostics.AddError("Failed to upload Glue script", err.Error())
 		return
@@ -138,6 +138,7 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 		"ORG":          r.client.Organization,
 		"PROJECT":      r.client.Project,
 		"TABLE":        table,
+		"CONCURRENCY":  "10",
 	}
 
 	if err := createGlueJob(ctx, glueClient, glueJobName, glueRoleARN, scriptBucket, scriptKey, glueParams); err != nil {
@@ -145,11 +146,20 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 		return
 	}
 
+	// Wait for IAM role propagation before starting the job.
+	// Glue needs the role to download the script from S3.
+	time.Sleep(15 * time.Second)
+
 	runID, err := startGlueJobRun(ctx, glueClient, glueJobName)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to start Glue job run", err.Error())
 		return
 	}
+
+	tflog.Info(ctx, "Glue job run started", map[string]interface{}{
+		"job_name": glueJobName,
+		"run_id":   runID,
+	})
 
 	// Step 4: Create Lambda function.
 	lambdaFunctionName := fmt.Sprintf("rawtree-ingest-%s", resourceName)
@@ -350,6 +360,11 @@ func (r *S3IngestionResource) Delete(ctx context.Context, req resource.DeleteReq
 	lambdaClient := lambda.NewFromConfig(awsCfg)
 	ebClient := eventbridge.NewFromConfig(awsCfg)
 
+	tflog.Info(ctx, "Deleting S3 ingestion resource", map[string]interface{}{
+		"glue_job": state.GlueJobName,
+		"lambda":   state.LambdaFunctionName,
+	})
+
 	// Delete in reverse order of creation.
 
 	// EventBridge rule and target.
@@ -367,9 +382,9 @@ func (r *S3IngestionResource) Delete(ctx context.Context, req resource.DeleteReq
 		resp.Diagnostics.AddWarning("Failed to delete Glue job", err.Error())
 	}
 
-	// Script bucket.
-	if err := deleteScriptBucket(ctx, s3Client, state.ScriptBucket, state.ScriptKey); err != nil {
-		resp.Diagnostics.AddWarning("Failed to delete script bucket", err.Error())
+	// Glue script object (stored in source bucket).
+	if err := deleteGlueScriptObject(ctx, s3Client, state.ScriptBucket, state.ScriptKey); err != nil {
+		resp.Diagnostics.AddWarning("Failed to delete Glue script", err.Error())
 	}
 
 	// IAM roles.
@@ -388,4 +403,31 @@ func (r *S3IngestionResource) ImportState(ctx context.Context, req resource.Impo
 		"The rawtree_s3_ingestion resource does not support import. "+
 			"Please create the resource using Terraform.",
 	)
+}
+
+var nonAlphanumericHyphen = regexp.MustCompile(`[^a-z0-9-]`)
+
+// sanitizeResourceName produces an S3-safe name: lowercase, alphanumeric + hyphens,
+// with a short hash suffix for uniqueness, max 40 chars total.
+func sanitizeResourceName(raw string) string {
+	name := strings.ToLower(raw)
+	name = strings.ReplaceAll(name, "_", "-")
+	name = nonAlphanumericHyphen.ReplaceAllString(name, "")
+	// Collapse multiple hyphens.
+	for strings.Contains(name, "--") {
+		name = strings.ReplaceAll(name, "--", "-")
+	}
+	name = strings.Trim(name, "-")
+
+	// Append short hash for uniqueness.
+	h := sha256.Sum256([]byte(raw))
+	hash := hex.EncodeToString(h[:4]) // 8 hex chars
+
+	maxPrefix := 40 - len(hash) - 1 // 1 for the hyphen separator
+	if len(name) > maxPrefix {
+		name = name[:maxPrefix]
+	}
+	name = strings.TrimRight(name, "-")
+
+	return fmt.Sprintf("%s-%s", name, hash)
 }
