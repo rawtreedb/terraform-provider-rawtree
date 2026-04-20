@@ -90,6 +90,11 @@ func createGlueRole(ctx context.Context, client *iam.Client, resourceName, bucke
 				Action:   []string{"s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"},
 				Resource: s3Resources,
 			},
+			{
+				Effect:   "Allow",
+				Action:   []string{"kms:Decrypt", "kms:GenerateDataKey"},
+				Resource: []string{"*"},
+			},
 		},
 	})
 
@@ -175,6 +180,11 @@ func createLambdaRole(ctx context.Context, client *iam.Client, resourceName, buc
 				Effect:   "Allow",
 				Action:   []string{"s3:GetObject", "s3:GetBucketLocation"},
 				Resource: s3Resources,
+			},
+			{
+				Effect:   "Allow",
+				Action:   []string{"kms:Decrypt", "kms:GenerateDataKey"},
+				Resource: []string{"*"},
 			},
 		},
 	})

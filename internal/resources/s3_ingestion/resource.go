@@ -74,8 +74,18 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	format := plan.Format.ValueString()
 	filePattern := plan.FilePattern.ValueString()
 
+	// Resolve org/project: resource attribute takes priority, then provider config.
+	org := r.client.Organization
+	if !plan.Organization.IsNull() && !plan.Organization.IsUnknown() && plan.Organization.ValueString() != "" {
+		org = plan.Organization.ValueString()
+	}
+	project := r.client.Project
+	if !plan.Project.IsNull() && !plan.Project.IsUnknown() && plan.Project.ValueString() != "" {
+		project = plan.Project.ValueString()
+	}
+
 	// Generate unique resource name (S3-safe: lowercase, alphanumeric, hyphens, max 40 chars).
-	resourceName := sanitizeResourceName(fmt.Sprintf("%s-%s-%s", r.client.Organization, r.client.Project, table))
+	resourceName := sanitizeResourceName(fmt.Sprintf("%s-%s-%s", org, project, table))
 
 	// Initialize AWS clients.
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
@@ -135,8 +145,8 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 		"FORMAT":       format,
 		"API_URL":      r.client.APIURL,
 		"API_KEY":      r.client.APIKey,
-		"ORG":          r.client.Organization,
-		"PROJECT":      r.client.Project,
+		"ORG":          org,
+		"PROJECT":      project,
 		"TABLE":        table,
 		"CONCURRENCY":  "10",
 	}
@@ -168,8 +178,8 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	lambdaEnvVars := map[string]string{
 		"API_URL":      r.client.APIURL,
 		"API_KEY":      r.client.APIKey,
-		"ORG":          r.client.Organization,
-		"PROJECT":      r.client.Project,
+		"ORG":          org,
+		"PROJECT":      project,
 		"TABLE":        table,
 		"FORMAT":       format,
 		"FILE_PATTERN": filePattern,
@@ -214,6 +224,10 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 
 	// Set state.
 	plan.ID = types.StringValue(resourceName)
+	plan.APIURL = types.StringValue(r.client.APIURL)
+	plan.APIKeyHash = types.StringValue(hashString(r.client.APIKey))
+	plan.Organization = types.StringValue(org)
+	plan.Project = types.StringValue(project)
 	plan.GlueJobName = types.StringValue(glueJobName)
 	plan.GlueJobRunID = types.StringValue(runID)
 	plan.LambdaFunctionARN = types.StringValue(lambdaARN)
@@ -268,6 +282,17 @@ func (r *S3IngestionResource) Read(ctx context.Context, req resource.ReadRequest
 		return
 	}
 
+	// Refresh provider-derived values so changes trigger an update.
+	data.APIURL = types.StringValue(r.client.APIURL)
+	data.APIKeyHash = types.StringValue(hashString(r.client.APIKey))
+	// Only refresh org/project from provider if not explicitly set in the resource.
+	if data.Organization.IsNull() || data.Organization.ValueString() == "" {
+		data.Organization = types.StringValue(r.client.Organization)
+	}
+	if data.Project.IsNull() || data.Project.ValueString() == "" {
+		data.Project = types.StringValue(r.client.Project)
+	}
+
 	// Preserve private state.
 	resp.Private.SetKey(ctx, "aws_resources", stateJSON)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -302,12 +327,22 @@ func (r *S3IngestionResource) Update(ctx context.Context, req resource.UpdateReq
 
 	lambdaClient := lambda.NewFromConfig(awsCfg)
 
+	// Resolve org/project: resource attribute takes priority, then provider config.
+	org := r.client.Organization
+	if !plan.Organization.IsNull() && !plan.Organization.IsUnknown() && plan.Organization.ValueString() != "" {
+		org = plan.Organization.ValueString()
+	}
+	project := r.client.Project
+	if !plan.Project.IsNull() && !plan.Project.IsUnknown() && plan.Project.ValueString() != "" {
+		project = plan.Project.ValueString()
+	}
+
 	// Update Lambda environment variables.
 	envVars := map[string]string{
 		"API_URL":      r.client.APIURL,
 		"API_KEY":      r.client.APIKey,
-		"ORG":          r.client.Organization,
-		"PROJECT":      r.client.Project,
+		"ORG":          org,
+		"PROJECT":      project,
 		"TABLE":        plan.Table.ValueString(),
 		"FORMAT":       plan.Format.ValueString(),
 		"FILE_PATTERN": plan.FilePattern.ValueString(),
@@ -318,6 +353,12 @@ func (r *S3IngestionResource) Update(ctx context.Context, req resource.UpdateReq
 		resp.Diagnostics.AddError("Failed to update Lambda function", err.Error())
 		return
 	}
+
+	// Update provider-derived values in state.
+	plan.APIURL = types.StringValue(r.client.APIURL)
+	plan.APIKeyHash = types.StringValue(hashString(r.client.APIKey))
+	plan.Organization = types.StringValue(org)
+	plan.Project = types.StringValue(project)
 
 	// Preserve private state.
 	resp.Private.SetKey(ctx, "aws_resources", stateJSON)
@@ -403,6 +444,12 @@ func (r *S3IngestionResource) ImportState(ctx context.Context, req resource.Impo
 		"The rawtree_s3_ingestion resource does not support import. "+
 			"Please create the resource using Terraform.",
 	)
+}
+
+// hashString returns a short SHA-256 hex hash of the input.
+func hashString(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
 }
 
 var nonAlphanumericHyphen = regexp.MustCompile(`[^a-z0-9-]`)

@@ -16,6 +16,12 @@ type S3IngestionModel struct {
 	Format      types.String `tfsdk:"format"`
 	Region      types.String `tfsdk:"region"`
 
+	// Provider-derived attributes (trigger update when provider config changes).
+	APIURL       types.String `tfsdk:"api_url"`
+	APIKeyHash   types.String `tfsdk:"api_key_hash"`
+	Organization types.String `tfsdk:"organization"`
+	Project      types.String `tfsdk:"project"`
+
 	// Computed attributes.
 	GlueJobName        types.String `tfsdk:"glue_job_name"`
 	GlueJobRunID       types.String `tfsdk:"glue_job_run_id"`

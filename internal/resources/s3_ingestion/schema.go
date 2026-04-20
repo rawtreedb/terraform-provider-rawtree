@@ -60,6 +60,28 @@ func resourceSchema() schema.Schema {
 				},
 			},
 
+			"organization": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "The Rawtree organization. Defaults to the provider-level organization.",
+			},
+			"project": schema.StringAttribute{
+				Optional:    true,
+				Computed:    true,
+				Description: "The Rawtree project. Defaults to the provider-level project.",
+			},
+
+			// Provider-derived attributes (trigger update when provider config changes).
+			"api_url": schema.StringAttribute{
+				Computed:    true,
+				Description: "The Rawtree API URL (from provider config).",
+			},
+			"api_key_hash": schema.StringAttribute{
+				Computed:    true,
+				Sensitive:   true,
+				Description: "Hash of the API key (from provider config). Changes trigger Lambda env var update.",
+			},
+
 			// Computed attributes.
 			"glue_job_name": schema.StringAttribute{
 				Computed:    true,

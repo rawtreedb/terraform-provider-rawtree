@@ -22,6 +22,22 @@ func TestResourceSchema(t *testing.T) {
 		}
 	}
 
+	// Verify optional+computed attributes (resource override or provider default).
+	optionalComputedAttrs := []string{"organization", "project"}
+	for _, attr := range optionalComputedAttrs {
+		a, ok := schema.Attributes[attr]
+		if !ok {
+			t.Errorf("missing attribute: %s", attr)
+			continue
+		}
+		if !a.IsOptional() {
+			t.Errorf("attribute %s should be optional", attr)
+		}
+		if !a.IsComputed() {
+			t.Errorf("attribute %s should be computed", attr)
+		}
+	}
+
 	// Verify optional attributes exist.
 	optionalAttrs := []string{"prefix", "file_pattern"}
 	for _, attr := range optionalAttrs {
@@ -36,7 +52,7 @@ func TestResourceSchema(t *testing.T) {
 	}
 
 	// Verify computed attributes exist.
-	computedAttrs := []string{"id", "glue_job_name", "glue_job_run_id", "lambda_function_arn", "eventbridge_rule_arn"}
+	computedAttrs := []string{"id", "glue_job_name", "glue_job_run_id", "lambda_function_arn", "eventbridge_rule_arn", "api_url", "api_key_hash"}
 	for _, attr := range computedAttrs {
 		a, ok := schema.Attributes[attr]
 		if !ok {
