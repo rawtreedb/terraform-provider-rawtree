@@ -75,6 +75,28 @@ resource "aws_s3_object" "logs_jsonl" {
   etag         = filemd5("${path.module}/../data/logs.jsonl")
 }
 
+# WAFv2 Web ACL for waf_ingestion acceptance tests (CloudFront scope = CLOUDFRONT, region must be us-east-1).
+resource "aws_wafv2_web_acl" "test" {
+  name        = "rawtree-provider-test-${local.suffix}"
+  description = "Test Web ACL for terraform-provider-rawtree acceptance tests"
+  scope       = "CLOUDFRONT"
+
+  default_action {
+    allow {}
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = false
+    metric_name                = "rawtree-provider-test-${local.suffix}"
+    sampled_requests_enabled   = false
+  }
+
+  tags = {
+    "managed-by" = "terraform-provider-rawtree-tests"
+    "purpose"    = "acceptance-testing"
+  }
+}
+
 # Outputs for use in acceptance tests
 output "bucket_name" {
   value       = aws_s3_bucket.test.id
@@ -85,9 +107,15 @@ output "region" {
   value = var.region
 }
 
+output "web_acl_arn" {
+  value       = aws_wafv2_web_acl.test.arn
+  description = "Set this as RAWTREE_TEST_WAF_WEB_ACL_ARN when running acceptance tests."
+}
+
 output "test_env" {
   value       = <<-EOT
     export RAWTREE_TEST_S3_BUCKET="${aws_s3_bucket.test.id}"
+    export RAWTREE_TEST_WAF_WEB_ACL_ARN="${aws_wafv2_web_acl.test.arn}"
     export AWS_REGION="${var.region}"
   EOT
   description = "Paste this into your shell before running acceptance tests."

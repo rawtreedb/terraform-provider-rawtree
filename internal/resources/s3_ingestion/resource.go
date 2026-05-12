@@ -2,12 +2,8 @@ package s3_ingestion
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -21,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/client"
+	"github.com/rawtreedb/terraform-provider-rawtree/internal/util"
 )
 
 var (
@@ -85,7 +82,7 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	}
 
 	// Generate unique resource name (S3-safe: lowercase, alphanumeric, hyphens, max 40 chars).
-	resourceName := sanitizeResourceName(fmt.Sprintf("%s-%s-%s", org, project, table))
+	resourceName := util.SanitizeResourceName(fmt.Sprintf("%s-%s-%s", org, project, table))
 
 	// Initialize AWS clients.
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
@@ -225,7 +222,7 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	// Set state.
 	plan.ID = types.StringValue(resourceName)
 	plan.APIURL = types.StringValue(r.client.APIURL)
-	plan.APIKeyHash = types.StringValue(hashString(r.client.APIKey))
+	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
 	plan.Organization = types.StringValue(org)
 	plan.Project = types.StringValue(project)
 	plan.GlueJobName = types.StringValue(glueJobName)
@@ -284,7 +281,7 @@ func (r *S3IngestionResource) Read(ctx context.Context, req resource.ReadRequest
 
 	// Refresh provider-derived values so changes trigger an update.
 	data.APIURL = types.StringValue(r.client.APIURL)
-	data.APIKeyHash = types.StringValue(hashString(r.client.APIKey))
+	data.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
 	// Only refresh org/project from provider if not explicitly set in the resource.
 	if data.Organization.IsNull() || data.Organization.ValueString() == "" {
 		data.Organization = types.StringValue(r.client.Organization)
@@ -356,7 +353,7 @@ func (r *S3IngestionResource) Update(ctx context.Context, req resource.UpdateReq
 
 	// Update provider-derived values in state.
 	plan.APIURL = types.StringValue(r.client.APIURL)
-	plan.APIKeyHash = types.StringValue(hashString(r.client.APIKey))
+	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
 	plan.Organization = types.StringValue(org)
 	plan.Project = types.StringValue(project)
 
@@ -444,37 +441,4 @@ func (r *S3IngestionResource) ImportState(ctx context.Context, req resource.Impo
 		"The rawtree_s3_ingestion resource does not support import. "+
 			"Please create the resource using Terraform.",
 	)
-}
-
-// hashString returns a short SHA-256 hex hash of the input.
-func hashString(s string) string {
-	h := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(h[:])
-}
-
-var nonAlphanumericHyphen = regexp.MustCompile(`[^a-z0-9-]`)
-
-// sanitizeResourceName produces an S3-safe name: lowercase, alphanumeric + hyphens,
-// with a short hash suffix for uniqueness, max 40 chars total.
-func sanitizeResourceName(raw string) string {
-	name := strings.ToLower(raw)
-	name = strings.ReplaceAll(name, "_", "-")
-	name = nonAlphanumericHyphen.ReplaceAllString(name, "")
-	// Collapse multiple hyphens.
-	for strings.Contains(name, "--") {
-		name = strings.ReplaceAll(name, "--", "-")
-	}
-	name = strings.Trim(name, "-")
-
-	// Append short hash for uniqueness.
-	h := sha256.Sum256([]byte(raw))
-	hash := hex.EncodeToString(h[:4]) // 8 hex chars
-
-	maxPrefix := 40 - len(hash) - 1 // 1 for the hyphen separator
-	if len(name) > maxPrefix {
-		name = name[:maxPrefix]
-	}
-	name = strings.TrimRight(name, "-")
-
-	return fmt.Sprintf("%s-%s", name, hash)
 }
