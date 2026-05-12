@@ -3,11 +3,13 @@ package waf_ingestion
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/firehose"
+	fhtypes "github.com/aws/aws-sdk-go-v2/service/firehose/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/wafv2"
@@ -205,7 +207,13 @@ func (r *WafIngestionResource) Read(ctx context.Context, req resource.ReadReques
 		DeliveryStreamName: &state.FirehoseName,
 	})
 	if err != nil {
-		resp.State.RemoveResource(ctx)
+		var notFound *fhtypes.ResourceNotFoundException
+		if errors.As(err, &notFound) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		resp.Diagnostics.AddError("Failed to read Firehose delivery stream",
+			fmt.Sprintf("Error describing Firehose %s: %s", state.FirehoseName, err))
 		return
 	}
 

@@ -2,6 +2,7 @@ package waf_ingestion
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -153,8 +154,11 @@ func waitForFirehoseDeleted(ctx context.Context, client *firehose.Client, name s
 			DeliveryStreamName: aws.String(name),
 		})
 		if err != nil {
-			// Stream no longer exists.
-			return nil
+			var notFound *fhtypes.ResourceNotFoundException
+			if errors.As(err, &notFound) {
+				return nil
+			}
+			return fmt.Errorf("error checking Firehose %s deletion status: %w", name, err)
 		}
 		time.Sleep(5 * time.Second)
 	}

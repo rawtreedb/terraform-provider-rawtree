@@ -78,18 +78,6 @@ func CreateAndAttachPolicy(ctx context.Context, client *iam.Client, policyName, 
 	return policyARN, nil
 }
 
-// AttachManagedPolicy attaches an AWS-managed policy to a role.
-func AttachManagedPolicy(ctx context.Context, client *iam.Client, roleName, policyARN string) error {
-	_, err := client.AttachRolePolicy(ctx, &iam.AttachRolePolicyInput{
-		RoleName:  aws.String(roleName),
-		PolicyArn: aws.String(policyARN),
-	})
-	if err != nil {
-		return fmt.Errorf("attaching managed policy %s to role %s: %w", policyARN, roleName, err)
-	}
-	return nil
-}
-
 // DeleteRole detaches policies and deletes an IAM role.
 func DeleteRole(ctx context.Context, client *iam.Client, roleName, customPolicyARN, managedPolicyARN string) error {
 	if managedPolicyARN != "" {
