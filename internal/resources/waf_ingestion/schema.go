@@ -82,15 +82,19 @@ func resourceSchema() schema.Schema {
 				Description: "The Rawtree project. Defaults to the provider-level project.",
 			},
 
-			"api_url": schema.StringAttribute{
-				Computed:    true,
-				Description: "The Rawtree API URL (from provider config).",
-			},
-			"api_key_hash": schema.StringAttribute{
-				Computed:    true,
-				Sensitive:   true,
-				Description: "Hash of the API key (from provider config). Changes trigger Firehose destination update.",
-			},
+		"api_url": schema.StringAttribute{
+			Computed:    true,
+			Description: "The Rawtree API URL (from provider config).",
+		},
+		"api_key_hash": schema.StringAttribute{
+			Computed:    true,
+			Sensitive:   true,
+			Description: "Hash of the API key (from provider config). Changes trigger Firehose destination update.",
+		},
+		"endpoint_url": schema.StringAttribute{
+			Computed:    true,
+			Description: "The full Firehose HTTP endpoint URL (e.g. {api_url}/v1/{org}/{project}/tables/{table}?transform=firehose).",
+		},
 
 			"firehose_arn": schema.StringAttribute{
 				Computed:    true,

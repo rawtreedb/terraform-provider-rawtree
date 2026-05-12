@@ -24,6 +24,9 @@ type WafIngestionModel struct {
 	Organization types.String `tfsdk:"organization"`
 	Project      types.String `tfsdk:"project"`
 
+	// Full Firehose HTTP endpoint URL (derived from api_url + org + project + table).
+	EndpointURL types.String `tfsdk:"endpoint_url"`
+
 	// Computed attributes.
 	FirehoseARN               types.String `tfsdk:"firehose_arn"`
 	FirehoseName              types.String `tfsdk:"firehose_name"`

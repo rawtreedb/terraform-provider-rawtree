@@ -29,6 +29,18 @@ resource "rawtree_waf_ingestion" "waf_logs" {
 }
 ```
 
+### With Explicit Organization and Project
+
+```hcl
+resource "rawtree_waf_ingestion" "waf_logs" {
+  table        = "waf_logs"
+  web_acl_arn  = "arn:aws:wafv2:us-east-1:123456789012:global/webacl/my-web-acl/abc123"
+  region       = "us-east-1"
+  organization = "my-org"
+  project      = "my-project"
+}
+```
+
 ### With Custom Buffering
 
 ```hcl
@@ -61,7 +73,8 @@ resource "rawtree_waf_ingestion" "waf_logs" {
 ### Read-Only
 
 - `id` (String) - The unique identifier for this ingestion resource.
-- `api_url` (String) - The Rawtree API URL (from provider config).
+- `api_url` (String) - The Rawtree API base URL (from provider config).
+- `endpoint_url` (String) - The full Firehose HTTP endpoint URL (e.g. `{api_url}/v1/{org}/{project}/tables/{table}?transform=firehose`). Reflects the actual URL configured on the Firehose delivery stream in AWS.
 - `api_key_hash` (String, Sensitive) - Hash of the API key (from provider config).
 - `firehose_arn` (String) - The ARN of the Kinesis Data Firehose delivery stream.
 - `firehose_name` (String) - The name of the Kinesis Data Firehose delivery stream.

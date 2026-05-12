@@ -21,11 +21,13 @@ resource "rawtree_waf_ingestion" "waf_logs" {
   region      = "us-east-1"
 }
 
-# With custom buffering and full backup.
+# With explicit organization/project and custom buffering.
 resource "rawtree_waf_ingestion" "waf_logs_full_backup" {
   table              = "waf_logs_audit"
   web_acl_arn        = "arn:aws:wafv2:us-east-1:123456789012:global/webacl/my-audit-acl/def456"
   region             = "us-east-1"
+  organization       = "my-org"
+  project            = "my-project"
   buffering_size     = 10
   buffering_interval = 120
   s3_backup_mode     = "AllData"

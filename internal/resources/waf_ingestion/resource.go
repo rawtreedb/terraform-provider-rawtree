@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -24,6 +25,7 @@ import (
 var (
 	_ resource.Resource                = &WafIngestionResource{}
 	_ resource.ResourceWithImportState = &WafIngestionResource{}
+	_ resource.ResourceWithModifyPlan  = &WafIngestionResource{}
 )
 
 type WafIngestionResource struct {
@@ -40,6 +42,43 @@ func (r *WafIngestionResource) Metadata(_ context.Context, req resource.Metadata
 
 func (r *WafIngestionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = resourceSchema()
+}
+
+func (r *WafIngestionResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	// Skip on create (no prior state) or destroy (no plan).
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	if r.client == nil {
+		return
+	}
+
+	var plan WafIngestionModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Override the computed api_url, endpoint_url, and api_key_hash with values
+	// derived from the current provider config. State reflects the actual AWS
+	// Firehose endpoint (set during Read), so if the provider config has changed,
+	// Terraform will see a diff and trigger an Update.
+	org := r.client.Organization
+	if !plan.Organization.IsNull() && !plan.Organization.IsUnknown() && plan.Organization.ValueString() != "" {
+		org = plan.Organization.ValueString()
+	}
+	project := r.client.Project
+	if !plan.Project.IsNull() && !plan.Project.IsUnknown() && plan.Project.ValueString() != "" {
+		project = plan.Project.ValueString()
+	}
+	table := plan.Table.ValueString()
+
+	plan.APIURL = types.StringValue(r.client.APIURL)
+	plan.EndpointURL = types.StringValue(fmt.Sprintf("%s/v1/%s/%s/tables/%s?transform=firehose",
+		r.client.APIURL, org, project, table))
+	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
 
 func (r *WafIngestionResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -156,6 +195,7 @@ func (r *WafIngestionResource) Create(ctx context.Context, req resource.CreateRe
 	// Set state.
 	plan.ID = types.StringValue(resourceName)
 	plan.APIURL = types.StringValue(r.client.APIURL)
+	plan.EndpointURL = types.StringValue(endpointURL)
 	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
 	plan.Organization = types.StringValue(org)
 	plan.Project = types.StringValue(project)
@@ -202,8 +242,8 @@ func (r *WafIngestionResource) Read(ctx context.Context, req resource.ReadReques
 
 	firehoseClient := firehose.NewFromConfig(awsCfg)
 
-	// Verify Firehose exists.
-	_, err = firehoseClient.DescribeDeliveryStream(ctx, &firehose.DescribeDeliveryStreamInput{
+	// Verify Firehose exists and read its current configuration.
+	descOut, err := firehoseClient.DescribeDeliveryStream(ctx, &firehose.DescribeDeliveryStreamInput{
 		DeliveryStreamName: &state.FirehoseName,
 	})
 	if err != nil {
@@ -217,9 +257,24 @@ func (r *WafIngestionResource) Read(ctx context.Context, req resource.ReadReques
 		return
 	}
 
-	// Refresh provider-derived values.
-	data.APIURL = types.StringValue(r.client.APIURL)
-	data.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
+	// Read actual endpoint URL from the Firehose destination so Terraform can
+	// detect drift (e.g., provider api_url or org/project changed).
+	actualEndpointURL := ""
+	actualAPIURL := r.client.APIURL
+	if dests := descOut.DeliveryStreamDescription.Destinations; len(dests) > 0 {
+		if httpDest := dests[0].HttpEndpointDestinationDescription; httpDest != nil {
+			if ep := httpDest.EndpointConfiguration; ep != nil && ep.Url != nil {
+				actualEndpointURL = *ep.Url
+				actualAPIURL = extractBaseURL(*ep.Url)
+			}
+		}
+	}
+
+	data.APIURL = types.StringValue(actualAPIURL)
+	data.EndpointURL = types.StringValue(actualEndpointURL)
+	// Don't overwrite api_key_hash here -- keep the value from prior state so
+	// ModifyPlan (which sets it to the current provider key) can detect changes.
+	// AWS does not expose the access key in DescribeDeliveryStream.
 	if data.Organization.IsNull() || data.Organization.ValueString() == "" {
 		data.Organization = types.StringValue(r.client.Organization)
 	}
@@ -288,6 +343,7 @@ func (r *WafIngestionResource) Update(ctx context.Context, req resource.UpdateRe
 	}
 
 	plan.APIURL = types.StringValue(r.client.APIURL)
+	plan.EndpointURL = types.StringValue(endpointURL)
 	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
 	plan.Organization = types.StringValue(org)
 	plan.Project = types.StringValue(project)
@@ -368,4 +424,16 @@ func (r *WafIngestionResource) ImportState(ctx context.Context, req resource.Imp
 		"The rawtree_waf_ingestion resource does not support import. "+
 			"Please create the resource using Terraform.",
 	)
+}
+
+// extractBaseURL strips the /v1/{org}/{project}/tables/{table}?transform=firehose
+// path from a full Firehose endpoint URL, returning just the scheme+host portion.
+// For example: "https://api.example.com/v1/org/proj/tables/t?transform=firehose"
+// returns "https://api.example.com".
+func extractBaseURL(endpointURL string) string {
+	idx := strings.Index(endpointURL, "/v1/")
+	if idx > 0 {
+		return endpointURL[:idx]
+	}
+	return endpointURL
 }
