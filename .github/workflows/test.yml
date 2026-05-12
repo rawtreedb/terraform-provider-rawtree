@@ -34,7 +34,13 @@ jobs:
           cache: true
       - run: |
           go vet ./...
-          test -z "$(gofmt -l .)"
+          UNFORMATTED=$(gofmt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "::error::The following files are not gofmt-formatted:"
+            echo "$UNFORMATTED"
+            gofmt -d .
+            exit 1
+          fi
 
   test:
     name: Unit Tests

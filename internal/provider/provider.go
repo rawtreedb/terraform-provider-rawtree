@@ -15,6 +15,7 @@ import (
 
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/client"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/s3_ingestion"
+	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/waf_ingestion"
 )
 
 const (
@@ -58,7 +59,7 @@ func (p *RawtreeProvider) Metadata(_ context.Context, _ provider.MetadataRequest
 
 func (p *RawtreeProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "The Rawtree provider enables automated data ingestion from AWS S3 into Rawtree.",
+		Description: "The Rawtree provider enables automated data ingestion into Rawtree from AWS sources (S3, WAF logs).",
 		Attributes: map[string]schema.Attribute{
 			"api_key": schema.StringAttribute{
 				Optional:    true,
@@ -139,6 +140,7 @@ func (p *RawtreeProvider) Configure(ctx context.Context, req provider.ConfigureR
 func (p *RawtreeProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		s3_ingestion.NewResource,
+		waf_ingestion.NewResource,
 	}
 }
 

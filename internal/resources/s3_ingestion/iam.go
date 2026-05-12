@@ -216,34 +216,3 @@ func createLambdaRole(ctx context.Context, client *iam.Client, resourceName, buc
 
 	return roleARN, roleName, policyARN, nil
 }
-
-// deleteRole detaches policies and deletes an IAM role.
-func deleteRole(ctx context.Context, client *iam.Client, roleName, customPolicyARN string, managedPolicyARN string) error {
-	// Detach managed policy.
-	if managedPolicyARN != "" {
-		_, _ = client.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
-			RoleName:  aws.String(roleName),
-			PolicyArn: aws.String(managedPolicyARN),
-		})
-	}
-
-	// Detach and delete custom policy.
-	if customPolicyARN != "" {
-		_, _ = client.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
-			RoleName:  aws.String(roleName),
-			PolicyArn: aws.String(customPolicyARN),
-		})
-		_, _ = client.DeletePolicy(ctx, &iam.DeletePolicyInput{
-			PolicyArn: aws.String(customPolicyARN),
-		})
-	}
-
-	_, err := client.DeleteRole(ctx, &iam.DeleteRoleInput{
-		RoleName: aws.String(roleName),
-	})
-	if err != nil {
-		return fmt.Errorf("deleting IAM role %s: %w", roleName, err)
-	}
-
-	return nil
-}
