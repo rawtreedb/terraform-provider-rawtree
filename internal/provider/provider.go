@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/client"
+	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/mongo_connector"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/s3_ingestion"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/waf_ingestion"
 )
@@ -139,6 +140,7 @@ func (p *RawtreeProvider) Configure(ctx context.Context, req provider.ConfigureR
 
 func (p *RawtreeProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
+		mongo_connector.NewResource,
 		s3_ingestion.NewResource,
 		waf_ingestion.NewResource,
 	}
