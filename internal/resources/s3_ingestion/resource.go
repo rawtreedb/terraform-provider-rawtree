@@ -426,11 +426,11 @@ func (r *S3IngestionResource) Delete(ctx context.Context, req resource.DeleteReq
 	}
 
 	// IAM roles.
-	if err := deleteRole(ctx, iamClient, state.GlueRoleName, state.GluePolicyARN, "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"); err != nil {
+	if err := util.DeleteRole(ctx, iamClient, state.GlueRoleName, state.GluePolicyARN, "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"); err != nil {
 		resp.Diagnostics.AddWarning("Failed to delete Glue IAM role", err.Error())
 	}
 
-	if err := deleteRole(ctx, iamClient, state.LambdaRoleName, state.LambdaPolicyARN, "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"); err != nil {
+	if err := util.DeleteRole(ctx, iamClient, state.LambdaRoleName, state.LambdaPolicyARN, "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"); err != nil {
 		resp.Diagnostics.AddWarning("Failed to delete Lambda IAM role", err.Error())
 	}
 }
