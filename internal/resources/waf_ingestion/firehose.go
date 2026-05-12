@@ -103,6 +103,11 @@ func updateDeliveryStream(ctx context.Context, client *firehose.Client, name str
 
 	versionID := desc.DeliveryStreamDescription.VersionId
 
+	if len(desc.DeliveryStreamDescription.Destinations) == 0 {
+		return fmt.Errorf("Firehose %s has no destinations configured", name)
+	}
+	destinationID := desc.DeliveryStreamDescription.Destinations[0].DestinationId
+
 	backupMode := fhtypes.HttpEndpointS3BackupModeFailedDataOnly
 	if cfg.S3BackupMode == "AllData" {
 		backupMode = fhtypes.HttpEndpointS3BackupModeAllData
@@ -111,7 +116,7 @@ func updateDeliveryStream(ctx context.Context, client *firehose.Client, name str
 	_, err = client.UpdateDestination(ctx, &firehose.UpdateDestinationInput{
 		DeliveryStreamName:             aws.String(name),
 		CurrentDeliveryStreamVersionId: versionID,
-		DestinationId:                  desc.DeliveryStreamDescription.Destinations[0].DestinationId,
+		DestinationId:                  destinationID,
 		HttpEndpointDestinationUpdate: &fhtypes.HttpEndpointDestinationUpdate{
 			EndpointConfiguration: &fhtypes.HttpEndpointConfiguration{
 				Url:       aws.String(cfg.EndpointURL),
