@@ -41,6 +41,9 @@ func TestProviderHasResources(t *testing.T) {
 	if _, ok := resp.ResourceSchemas["rawtree_s3_ingestion"]; !ok {
 		t.Error("expected rawtree_s3_ingestion resource to be registered")
 	}
+	if _, ok := resp.ResourceSchemas["rawtree_waf_ingestion"]; !ok {
+		t.Error("expected rawtree_waf_ingestion resource to be registered")
+	}
 }
 
 func TestResolveString(t *testing.T) {
