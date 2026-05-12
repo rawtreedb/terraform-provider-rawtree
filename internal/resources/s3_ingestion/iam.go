@@ -216,4 +216,3 @@ func createLambdaRole(ctx context.Context, client *iam.Client, resourceName, buc
 
 	return roleARN, roleName, policyARN, nil
 }
-
