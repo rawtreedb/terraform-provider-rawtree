@@ -315,7 +315,7 @@ func (r *CloudfrontIngestionResource) Read(ctx context.Context, req resource.Rea
 		if httpDest := dests[0].HttpEndpointDestinationDescription; httpDest != nil {
 			if ep := httpDest.EndpointConfiguration; ep != nil && ep.Url != nil {
 				actualEndpointURL = *ep.Url
-				actualAPIURL = extractBaseURL(*ep.Url)
+				actualAPIURL = util.ExtractBaseURL(*ep.Url)
 			}
 		}
 	}
@@ -503,14 +503,6 @@ func (r *CloudfrontIngestionResource) ImportState(ctx context.Context, req resou
 		"The rawtree_cloudfront_ingestion resource does not support import. "+
 			"Please create the resource using Terraform.",
 	)
-}
-
-func extractBaseURL(endpointURL string) string {
-	idx := strings.Index(endpointURL, "/v1/")
-	if idx > 0 {
-		return endpointURL[:idx]
-	}
-	return endpointURL
 }
 
 func extractFieldsFromList(ctx context.Context, fieldList types.List) []string {

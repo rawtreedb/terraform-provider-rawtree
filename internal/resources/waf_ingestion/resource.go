@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -268,7 +267,7 @@ func (r *WafIngestionResource) Read(ctx context.Context, req resource.ReadReques
 		if httpDest := dests[0].HttpEndpointDestinationDescription; httpDest != nil {
 			if ep := httpDest.EndpointConfiguration; ep != nil && ep.Url != nil {
 				actualEndpointURL = *ep.Url
-				actualAPIURL = extractBaseURL(*ep.Url)
+				actualAPIURL = util.ExtractBaseURL(*ep.Url)
 			}
 		}
 	}
@@ -436,16 +435,4 @@ func (r *WafIngestionResource) ImportState(ctx context.Context, req resource.Imp
 		"The rawtree_waf_ingestion resource does not support import. "+
 			"Please create the resource using Terraform.",
 	)
-}
-
-// extractBaseURL strips the /v1/{org}/{project}/tables/{table}?transform=firehose
-// path from a full Firehose endpoint URL, returning just the scheme+host portion.
-// For example: "https://api.example.com/v1/org/proj/tables/t?transform=firehose"
-// returns "https://api.example.com".
-func extractBaseURL(endpointURL string) string {
-	idx := strings.Index(endpointURL, "/v1/")
-	if idx > 0 {
-		return endpointURL[:idx]
-	}
-	return endpointURL
 }

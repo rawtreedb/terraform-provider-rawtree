@@ -80,9 +80,9 @@ func TestExtractBaseURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractBaseURL(tt.input)
+			got := util.ExtractBaseURL(tt.input)
 			if got != tt.expected {
-				t.Errorf("extractBaseURL(%q) = %q, want %q", tt.input, got, tt.expected)
+				t.Errorf("ExtractBaseURL(%q) = %q, want %q", tt.input, got, tt.expected)
 			}
 		})
 	}

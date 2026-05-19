@@ -38,3 +38,15 @@ func HashString(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
 }
+
+// ExtractBaseURL strips the /v1/{org}/{project}/tables/{table}?transform=firehose
+// path from a full Firehose endpoint URL, returning just the scheme+host portion.
+// For example: "https://api.example.com/v1/org/proj/tables/t?transform=firehose"
+// returns "https://api.example.com".
+func ExtractBaseURL(endpointURL string) string {
+	idx := strings.Index(endpointURL, "/v1/")
+	if idx > 0 {
+		return endpointURL[:idx]
+	}
+	return endpointURL
+}
