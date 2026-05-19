@@ -10,8 +10,8 @@ import (
 	ktypes "github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 )
 
-func createKinesisStream(ctx context.Context, client *kinesis.Client, name string) (string, error) {
-	out, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
+func createKinesisStream(ctx context.Context, client *kinesis.Client, name string) error {
+	_, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
 		StreamName: aws.String(name),
 		StreamModeDetails: &ktypes.StreamModeDetails{
 			StreamMode: ktypes.StreamModeOnDemand,
@@ -21,10 +21,9 @@ func createKinesisStream(ctx context.Context, client *kinesis.Client, name strin
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("creating Kinesis stream %s: %w", name, err)
+		return fmt.Errorf("creating Kinesis stream %s: %w", name, err)
 	}
-	_ = out
-	return "", nil
+	return nil
 }
 
 func waitForKinesisActive(ctx context.Context, client *kinesis.Client, name string, timeout time.Duration) (string, error) {

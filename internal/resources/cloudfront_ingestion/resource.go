@@ -152,7 +152,7 @@ func (r *CloudfrontIngestionResource) Create(ctx context.Context, req resource.C
 
 	// Step 2: Create Kinesis Data Stream.
 	kinesisStreamName := fmt.Sprintf("rawtree-cf-%s", resourceName)
-	if _, err := createKinesisStream(ctx, kinesisClient, kinesisStreamName); err != nil {
+	if err := createKinesisStream(ctx, kinesisClient, kinesisStreamName); err != nil {
 		resp.Diagnostics.AddError("Failed to create Kinesis Data Stream", err.Error())
 		return
 	}
