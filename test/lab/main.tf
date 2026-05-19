@@ -4,6 +4,13 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
+    rawtree = {
+      source = "rawtreedb/rawtree"
+    }
   }
 }
 
@@ -14,7 +21,19 @@ variable "region" {
 
 variable "name_prefix" {
   type    = string
-  default = "rawtree-waf-lab"
+  default = "rawtree-lab"
+}
+
+variable "waf_table" {
+  type        = string
+  default     = "waf_logs"
+  description = "Rawtree table name for WAF logs."
+}
+
+variable "cloudfront_table" {
+  type        = string
+  default     = "cloudfront_logs"
+  description = "Rawtree table name for CloudFront real-time logs."
 }
 
 provider "aws" {
@@ -27,6 +46,8 @@ provider "aws" {
     }
   }
 }
+
+provider "rawtree" {}
 
 resource "random_id" "suffix" {
   byte_length = 4
@@ -45,7 +66,7 @@ resource "aws_s3_bucket" "origin" {
   force_destroy = true
 
   tags = {
-    "managed-by" = "rawtree-waf-lab"
+    "managed-by" = "rawtree-lab"
   }
 }
 
@@ -54,8 +75,8 @@ resource "aws_s3_object" "index" {
   key          = "index.html"
   content      = <<-HTML
     <!DOCTYPE html>
-    <html><head><title>WAF Lab</title></head>
-    <body><h1>Rawtree WAF Lab</h1><p>This origin serves traffic for WAF log generation.</p></body>
+    <html><head><title>Rawtree Lab</title></head>
+    <body><h1>Rawtree Ingestion Lab</h1><p>This origin serves traffic for WAF + CloudFront log generation.</p></body>
     </html>
   HTML
   content_type = "text/html"
@@ -75,8 +96,43 @@ resource "aws_s3_object" "api_users" {
   content_type = "application/json"
 }
 
+resource "aws_s3_object" "api_login" {
+  bucket       = aws_s3_bucket.origin.id
+  key          = "api/login"
+  content      = "{\"status\":\"ok\",\"token\":\"mock-jwt-token\"}"
+  content_type = "application/json"
+}
+
+resource "aws_s3_object" "api_search" {
+  bucket       = aws_s3_bucket.origin.id
+  key          = "api/search"
+  content      = "{\"results\":[],\"total\":0}"
+  content_type = "application/json"
+}
+
+resource "aws_s3_object" "api_orders" {
+  bucket       = aws_s3_bucket.origin.id
+  key          = "api/orders"
+  content      = "[{\"id\":1001,\"status\":\"shipped\"},{\"id\":1002,\"status\":\"pending\"}]"
+  content_type = "application/json"
+}
+
+resource "aws_s3_object" "api_admin" {
+  bucket       = aws_s3_bucket.origin.id
+  key          = "admin/dashboard"
+  content      = "{\"message\":\"admin panel\"}"
+  content_type = "application/json"
+}
+
+resource "aws_s3_object" "api_upload" {
+  bucket       = aws_s3_bucket.origin.id
+  key          = "api/upload"
+  content      = "{\"status\":\"ok\"}"
+  content_type = "application/json"
+}
+
 # ---------------------------------------------------------------------------
-# CloudFront OAC + Distribution
+# CloudFront OAC + Distribution (WAF + real-time logs)
 # ---------------------------------------------------------------------------
 
 resource "aws_cloudfront_origin_access_control" "main" {
@@ -150,7 +206,11 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   tags = {
-    "managed-by" = "rawtree-waf-lab"
+    "managed-by" = "rawtree-lab"
+  }
+
+  lifecycle {
+    ignore_changes = [default_cache_behavior[0].realtime_log_config_arn]
   }
 }
 
@@ -328,7 +388,8 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
-  # --- Custom rate-limiting rule: 100 requests per 5 min per IP ---
+  # --- Custom rate-limiting rule: 10000 requests per 5 min per IP ---
+  # Set high for lab use; traffic scripts send hundreds of requests per session.
   rule {
     name     = "rate-limit-per-ip"
     priority = 80
@@ -339,7 +400,7 @@ resource "aws_wafv2_web_acl" "main" {
 
     statement {
       rate_based_statement {
-        limit              = 100
+        limit              = 10000
         aggregate_key_type = "IP"
       }
     }
@@ -469,8 +530,28 @@ resource "aws_wafv2_web_acl" "main" {
   }
 
   tags = {
-    "managed-by" = "rawtree-waf-lab"
+    "managed-by" = "rawtree-lab"
   }
+}
+
+# ---------------------------------------------------------------------------
+# Rawtree WAF Ingestion (WAF logs -> Firehose -> Rawtree)
+# ---------------------------------------------------------------------------
+
+resource "rawtree_waf_ingestion" "main" {
+  table       = var.waf_table
+  web_acl_arn = aws_wafv2_web_acl.main.arn
+  region      = var.region
+}
+
+# ---------------------------------------------------------------------------
+# Rawtree CloudFront Ingestion (CF real-time logs -> Kinesis -> Firehose -> Rawtree)
+# ---------------------------------------------------------------------------
+
+resource "rawtree_cloudfront_ingestion" "main" {
+  table           = var.cloudfront_table
+  distribution_id = aws_cloudfront_distribution.main.id
+  region          = var.region
 }
 
 # ---------------------------------------------------------------------------
@@ -479,7 +560,7 @@ resource "aws_wafv2_web_acl" "main" {
 
 output "cloudfront_domain" {
   value       = aws_cloudfront_distribution.main.domain_name
-  description = "CloudFront domain name. Use as target for GoTestWAF and traffic scripts."
+  description = "CloudFront domain name. Target for traffic generation."
 }
 
 output "cloudfront_url" {
@@ -487,14 +568,37 @@ output "cloudfront_url" {
   description = "Full CloudFront URL."
 }
 
-output "web_acl_arn" {
-  value       = aws_wafv2_web_acl.main.arn
-  description = "WAF Web ACL ARN. Use with rawtree_waf_ingestion resource."
+output "distribution_id" {
+  value = aws_cloudfront_distribution.main.id
 }
 
-output "web_acl_name" {
-  value       = aws_wafv2_web_acl.main.name
-  description = "WAF Web ACL name."
+output "web_acl_arn" {
+  value = aws_wafv2_web_acl.main.arn
+}
+
+output "waf_firehose_name" {
+  value       = rawtree_waf_ingestion.main.firehose_name
+  description = "WAF Firehose delivery stream name."
+}
+
+output "waf_firehose_arn" {
+  value       = rawtree_waf_ingestion.main.firehose_arn
+  description = "WAF Firehose delivery stream ARN."
+}
+
+output "cf_kinesis_stream_name" {
+  value       = rawtree_cloudfront_ingestion.main.kinesis_stream_name
+  description = "CloudFront Kinesis data stream name."
+}
+
+output "cf_firehose_name" {
+  value       = rawtree_cloudfront_ingestion.main.firehose_name
+  description = "CloudFront Firehose delivery stream name."
+}
+
+output "cf_realtime_log_config_arn" {
+  value       = rawtree_cloudfront_ingestion.main.realtime_log_config_arn
+  description = "CloudFront real-time log config ARN."
 }
 
 output "origin_bucket" {
@@ -503,19 +607,10 @@ output "origin_bucket" {
 
 output "run_gotestwaf" {
   value       = "docker run --rm wallarm/gotestwaf --url https://${aws_cloudfront_distribution.main.domain_name} --skipWAFBlockCheck"
-  description = "Run this command to generate malicious traffic."
+  description = "Run this command to generate malicious traffic (produces both WAF + CF logs)."
 }
 
-output "run_legitimate_traffic" {
-  value       = <<-EOT
-    # Legitimate traffic (run in a loop):
-    for i in $(seq 1 50); do
-      curl -s -o /dev/null -w "%%{http_code} " "https://${aws_cloudfront_distribution.main.domain_name}/"
-      curl -s -o /dev/null -w "%%{http_code} " "https://${aws_cloudfront_distribution.main.domain_name}/api/health"
-      curl -s -o /dev/null -w "%%{http_code} " "https://${aws_cloudfront_distribution.main.domain_name}/api/users"
-      curl -s -o /dev/null -w "%%{http_code} " "https://${aws_cloudfront_distribution.main.domain_name}/api/users?page=1&limit=10"
-      sleep 0.5
-    done
-  EOT
-  description = "Run this to generate legitimate traffic alongside GoTestWAF."
+output "run_traffic" {
+  value       = "./generate-traffic.sh ${aws_cloudfront_distribution.main.domain_name}"
+  description = "Run the traffic generator (produces both WAF + CF real-time logs)."
 }

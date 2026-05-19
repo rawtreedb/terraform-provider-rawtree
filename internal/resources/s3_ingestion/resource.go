@@ -142,8 +142,6 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 		"FORMAT":       format,
 		"API_URL":      r.client.APIURL,
 		"API_KEY":      r.client.APIKey,
-		"ORG":          org,
-		"PROJECT":      project,
 		"TABLE":        table,
 		"CONCURRENCY":  "10",
 	}
@@ -175,8 +173,6 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	lambdaEnvVars := map[string]string{
 		"API_URL":      r.client.APIURL,
 		"API_KEY":      r.client.APIKey,
-		"ORG":          org,
-		"PROJECT":      project,
 		"TABLE":        table,
 		"FORMAT":       format,
 		"FILE_PATTERN": filePattern,
@@ -338,8 +334,6 @@ func (r *S3IngestionResource) Update(ctx context.Context, req resource.UpdateReq
 	envVars := map[string]string{
 		"API_URL":      r.client.APIURL,
 		"API_KEY":      r.client.APIKey,
-		"ORG":          org,
-		"PROJECT":      project,
 		"TABLE":        plan.Table.ValueString(),
 		"FORMAT":       plan.Format.ValueString(),
 		"FILE_PATTERN": plan.FilePattern.ValueString(),

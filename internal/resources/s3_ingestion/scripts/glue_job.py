@@ -7,7 +7,7 @@ to the Rawtree API for direct ingestion using a thread pool for
 concurrent processing.
 
 Required Glue job parameters:
-  --BUCKET, --FORMAT, --API_URL, --API_KEY, --ORG, --PROJECT, --TABLE
+  --BUCKET, --FORMAT, --API_URL, --API_KEY, --TABLE
 
 Optional Glue job parameters:
   --PREFIX, --FILE_PATTERN, --CONCURRENCY
@@ -59,8 +59,6 @@ try:
     file_format = args["FORMAT"]
     api_url = args["API_URL"].rstrip("/")
     api_key = args["API_KEY"]
-    org = args["ORG"]
-    project = args["PROJECT"]
     table = args["TABLE"]
     concurrency = int(args.get("CONCURRENCY", "10") or "10")
 except Exception as e:
@@ -121,7 +119,7 @@ def ingest_key(key):
         ExpiresIn=3600,
     )
 
-    endpoint = f"{api_url}/v1/{org}/{project}/tables/{table}"
+    endpoint = f"{api_url}/v1/tables/{table}"
     params = urllib.parse.urlencode({"url": presigned_url})
     url = f"{endpoint}?{params}"
 
@@ -160,7 +158,7 @@ def ingest_key(key):
 try:
     print(f"Bucket: s3://{bucket}/{prefix}")
     print(f"Format: {file_format}, Pattern: {file_pattern or '(none)'}, Concurrency: {concurrency}")
-    print(f"Target: {api_url}/v1/{org}/{project}/tables/{table}")
+    print(f"Target: {api_url}/v1/tables/{table}")
 
     # Collect matching keys.
     keys = [key for key in list_objects(bucket, prefix) if matches_filter(key)]

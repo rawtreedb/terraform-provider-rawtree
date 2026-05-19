@@ -508,6 +508,13 @@ func testAccWafIngestionE2EConfig(tableName, suffix string) string {
 	return fmt.Sprintf(`
 provider "aws" {
   region = %[1]q
+
+  default_tags {
+    tags = {
+      CostGroup   = "e2e"
+      Environment = "terraform-provider-rawtree"
+    }
+  }
 }
 
 resource "aws_s3_bucket" "origin" {

@@ -278,13 +278,11 @@ func testAccCheckRawtreeHasData(tableName string, expectedRows int) resource.Tes
 			apiURL = "https://api.us-east-1.aws.rawtree.dev"
 		}
 		apiKey := os.Getenv("RAWTREE_API_KEY")
-		org := os.Getenv("RAWTREE_ORG")
-		project := os.Getenv("RAWTREE_PROJECT")
 
 		query := fmt.Sprintf(`SELECT count() as cnt FROM %s`, tableName)
 		body := fmt.Sprintf(`{"sql":%q}`, query)
 
-		url := fmt.Sprintf("%s/v1/%s/%s/query", apiURL, org, project)
+		url := fmt.Sprintf("%s/v1/query", apiURL)
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		if err != nil {
 			return fmt.Errorf("creating query request: %w", err)
