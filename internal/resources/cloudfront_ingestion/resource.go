@@ -441,6 +441,7 @@ func (r *CloudfrontIngestionResource) Delete(ctx context.Context, req resource.D
 	firehoseClient := firehose.NewFromConfig(awsCfg)
 	kinesisClient := kinesis.NewFromConfig(awsCfg)
 	cfClient := cloudfront.NewFromConfig(awsCfg)
+	logsClient := cloudwatchlogs.NewFromConfig(awsCfg)
 
 	tflog.Info(ctx, "Deleting CloudFront ingestion resource", map[string]interface{}{
 		"firehose":        state.FirehoseName,
@@ -485,6 +486,14 @@ func (r *CloudfrontIngestionResource) Delete(ctx context.Context, req resource.D
 	// 6. Delete S3 backup bucket.
 	if err := util.DeleteBackupBucket(ctx, s3Client, state.BackupBucketName); err != nil {
 		resp.Diagnostics.AddWarning("Failed to delete S3 backup bucket", err.Error())
+	}
+
+	// 7. Delete CloudWatch log group created during Firehose setup.
+	logGroup := fmt.Sprintf("/aws/firehose/%s", state.FirehoseName)
+	if _, err := logsClient.DeleteLogGroup(ctx, &cloudwatchlogs.DeleteLogGroupInput{
+		LogGroupName: &logGroup,
+	}); err != nil {
+		resp.Diagnostics.AddWarning("Failed to delete CloudWatch log group", err.Error())
 	}
 }
 
