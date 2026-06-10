@@ -115,8 +115,8 @@ func (r *CloudfrontIngestionResource) Create(ctx context.Context, req resource.C
 	bufferingSeconds := int32(plan.BufferingInterval.ValueInt64())
 	s3BackupMode := plan.S3BackupMode.ValueString()
 
-	var fields []string
-	resp.Diagnostics.Append(plan.Fields.ElementsAs(ctx, &fields, false)...)
+	fields, fieldDiags := extractFieldsFromList(ctx, plan.Fields)
+	resp.Diagnostics.Append(fieldDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
