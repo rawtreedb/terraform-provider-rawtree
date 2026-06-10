@@ -169,12 +169,18 @@ func waitForTaskSuccess(ctx context.Context, client *ecs.Client, clusterARN, tas
 		task := out.Tasks[0]
 		if task.LastStatus != nil && aws.ToString(task.LastStatus) == "STOPPED" {
 			if task.StopCode == ecstypes.TaskStopCodeEssentialContainerExited {
+				allExitedZero := len(task.Containers) > 0
 				for _, container := range task.Containers {
-					if container.ExitCode != nil && aws.ToInt32(container.ExitCode) != 0 {
-						return fmt.Errorf("initialization ECS task exited with code %d: %s", aws.ToInt32(container.ExitCode), aws.ToString(task.StoppedReason))
+					if container.ExitCode == nil {
+						allExitedZero = false
+					} else if aws.ToInt32(container.ExitCode) != 0 {
+						return fmt.Errorf("initialization ECS task exited with code %d: %s",
+							aws.ToInt32(container.ExitCode), aws.ToString(task.StoppedReason))
 					}
 				}
-				return nil
+				if allExitedZero {
+					return nil
+				}
 			}
 			return fmt.Errorf("initialization ECS task stopped: %s", aws.ToString(task.StoppedReason))
 		}

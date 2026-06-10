@@ -60,10 +60,12 @@ func CreateRole(ctx context.Context, client *iam.Client, roleName, description s
 		if getErr != nil {
 			return "", fmt.Errorf("role %s already exists and failed to describe: %w", roleName, getErr)
 		}
-		_, _ = client.UpdateAssumeRolePolicy(ctx, &iam.UpdateAssumeRolePolicyInput{
+		if _, updateErr := client.UpdateAssumeRolePolicy(ctx, &iam.UpdateAssumeRolePolicyInput{
 			RoleName:       aws.String(roleName),
 			PolicyDocument: aws.String(string(tp)),
-		})
+		}); updateErr != nil {
+			return "", fmt.Errorf("updating assume-role policy for existing role %s: %w", roleName, updateErr)
+		}
 		return aws.ToString(getOut.Role.Arn), nil
 	}
 	return aws.ToString(out.Role.Arn), nil

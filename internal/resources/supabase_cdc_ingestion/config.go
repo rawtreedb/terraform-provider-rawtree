@@ -3,6 +3,7 @@ package supabase_cdc_ingestion
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -186,8 +187,13 @@ func buildContainerDefinition(cfg resolvedConfig, names ecsNames, secretARNs sec
 			Value: strptr("/tmp/supabase-ca.pem"),
 		})
 	}
-	for k, v := range cfg.Environment {
-		env = append(env, ecstypes.KeyValuePair{Name: strptr(k), Value: strptr(v)})
+	envKeys := make([]string, 0, len(cfg.Environment))
+	for k := range cfg.Environment {
+		envKeys = append(envKeys, k)
+	}
+	sort.Strings(envKeys)
+	for _, k := range envKeys {
+		env = append(env, ecstypes.KeyValuePair{Name: strptr(k), Value: strptr(cfg.Environment[k])})
 	}
 
 	secrets := []ecstypes.Secret{
