@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -74,9 +75,31 @@ func createService(ctx context.Context, client *ecs.Client, cfg resolvedConfig, 
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("creating ECS service %s: %w", names.ServiceName, err)
+		if !isServiceAlreadyExists(err) {
+			return "", fmt.Errorf("creating ECS service %s: %w", names.ServiceName, err)
+		}
+		if err := updateService(ctx, client, cfg, clusterARN, names.ServiceName, taskDefinitionARN); err != nil {
+			return "", fmt.Errorf("adopting existing ECS service %s: %w", names.ServiceName, err)
+		}
+		desc, descErr := client.DescribeServices(ctx, &ecs.DescribeServicesInput{
+			Cluster:  aws.String(clusterARN),
+			Services: []string{names.ServiceName},
+		})
+		if descErr != nil || len(desc.Services) == 0 {
+			return "", fmt.Errorf("ECS service %s exists but could not be described: %w", names.ServiceName, descErr)
+		}
+		return aws.ToString(desc.Services[0].ServiceArn), nil
 	}
 	return aws.ToString(out.Service.ServiceArn), nil
+}
+
+func isServiceAlreadyExists(err error) bool {
+	var apiErr interface{ ErrorCode() string }
+	if errors.As(err, &apiErr) {
+		code := apiErr.ErrorCode()
+		return code == "InvalidParameterException" || code == "ServiceAlreadyExists"
+	}
+	return strings.Contains(err.Error(), "Creation of service was not idempotent")
 }
 
 func updateService(ctx context.Context, client *ecs.Client, cfg resolvedConfig, clusterARN, serviceName, taskDefinitionARN string) error {

@@ -332,6 +332,22 @@ func (r *SupabaseCDCIngestionResource) Update(ctx context.Context, req resource.
 		DatabaseURLARN:   state.DatabaseURLSecretARN,
 		TLSRootCertARN:   state.TLSRootCertSecretARN,
 	}
+
+	if cfg.RunInitializationTask {
+		initTaskDefinitionARN, err := registerTaskDefinition(ctx, ecsClient, cfg, names, secretARNs, state.ExecutionRoleARN, cfg.InitCommand)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to register initialization ECS task definition", err.Error())
+			return
+		}
+		if err := runInitializationTask(ctx, ecsClient, cfg, state.ClusterARN, initTaskDefinitionARN); err != nil {
+			resp.Diagnostics.AddError("Failed to run initialization ECS task", err.Error())
+			return
+		}
+		if err := deregisterTaskDefinition(ctx, ecsClient, initTaskDefinitionARN); err != nil {
+			resp.Diagnostics.AddWarning("Failed to deregister initialization task definition", err.Error())
+		}
+	}
+
 	taskDefinitionARN, err := registerTaskDefinition(ctx, ecsClient, cfg, names, secretARNs, state.ExecutionRoleARN, cfg.WorkerCommand)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to register ECS task definition", err.Error())

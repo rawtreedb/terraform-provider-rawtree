@@ -20,7 +20,20 @@ func CreateSecret(ctx context.Context, client *secretsmanager.Client, name, desc
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("creating secret %s: %w", name, err)
+		var exists *secretsmanagertypes.ResourceExistsException
+		if !errors.As(err, &exists) {
+			return "", fmt.Errorf("creating secret %s: %w", name, err)
+		}
+		desc, descErr := client.DescribeSecret(ctx, &secretsmanager.DescribeSecretInput{
+			SecretId: aws.String(name),
+		})
+		if descErr != nil {
+			return "", fmt.Errorf("secret %s already exists and failed to describe: %w", name, descErr)
+		}
+		if err := PutSecretValue(ctx, client, name, value); err != nil {
+			return "", err
+		}
+		return aws.ToString(desc.ARN), nil
 	}
 	return aws.ToString(out.ARN), nil
 }
