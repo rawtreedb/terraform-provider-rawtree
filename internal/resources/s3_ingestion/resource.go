@@ -135,15 +135,18 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	glueJobName := fmt.Sprintf("rawtree-ingest-%s", resourceName)
 	state.GlueJobName = glueJobName
 
+	ingestEndpoint := buildIngestEndpoint(r.client.APIURL, org, project, table)
+
 	glueParams := map[string]string{
-		"BUCKET":       bucket,
-		"PREFIX":       prefix,
-		"FILE_PATTERN": filePattern,
-		"FORMAT":       format,
-		"API_URL":      r.client.APIURL,
-		"API_KEY":      r.client.APIKey,
-		"TABLE":        table,
-		"CONCURRENCY":  "10",
+		"BUCKET":           bucket,
+		"PREFIX":           prefix,
+		"FILE_PATTERN":     filePattern,
+		"FORMAT":           format,
+		"API_URL":          r.client.APIURL,
+		"API_KEY":          r.client.APIKey,
+		"TABLE":            table,
+		"INGEST_ENDPOINT":  ingestEndpoint,
+		"CONCURRENCY":      "10",
 	}
 
 	if err := createGlueJob(ctx, glueClient, glueJobName, glueRoleARN, scriptBucket, scriptKey, glueParams); err != nil {
@@ -171,12 +174,13 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	state.LambdaFunctionName = lambdaFunctionName
 
 	lambdaEnvVars := map[string]string{
-		"API_URL":      r.client.APIURL,
-		"API_KEY":      r.client.APIKey,
-		"TABLE":        table,
-		"FORMAT":       format,
-		"FILE_PATTERN": filePattern,
-		"PREFIX":       prefix,
+		"API_URL":          r.client.APIURL,
+		"API_KEY":          r.client.APIKey,
+		"TABLE":            table,
+		"FORMAT":           format,
+		"FILE_PATTERN":     filePattern,
+		"PREFIX":           prefix,
+		"INGEST_ENDPOINT":  ingestEndpoint,
 	}
 
 	lambdaARN, err := createLambdaFunction(ctx, lambdaClient, lambdaFunctionName, lambdaRoleARN, lambdaEnvVars)
@@ -330,14 +334,22 @@ func (r *S3IngestionResource) Update(ctx context.Context, req resource.UpdateReq
 		project = plan.Project.ValueString()
 	}
 
+	ingestEndpoint := buildIngestEndpoint(r.client.APIURL, org, project, plan.Table.ValueString())
+
 	// Update Lambda environment variables.
 	envVars := map[string]string{
-		"API_URL":      r.client.APIURL,
-		"API_KEY":      r.client.APIKey,
-		"TABLE":        plan.Table.ValueString(),
-		"FORMAT":       plan.Format.ValueString(),
-		"FILE_PATTERN": plan.FilePattern.ValueString(),
-		"PREFIX":       plan.Prefix.ValueString(),
+		"API_URL":          r.client.APIURL,
+		"API_KEY":          r.client.APIKey,
+		"TABLE":            plan.Table.ValueString(),
+		"FORMAT":           plan.Format.ValueString(),
+		"FILE_PATTERN":     plan.FilePattern.ValueString(),
+		"PREFIX":           plan.Prefix.ValueString(),
+		"INGEST_ENDPOINT":  ingestEndpoint,
+	}
+
+	if err := updateLambdaCode(ctx, lambdaClient, state.LambdaFunctionName); err != nil {
+		resp.Diagnostics.AddError("Failed to update Lambda function code", err.Error())
+		return
 	}
 
 	if err := updateLambdaEnvVars(ctx, lambdaClient, state.LambdaFunctionName, envVars); err != nil {
@@ -435,4 +447,9 @@ func (r *S3IngestionResource) ImportState(ctx context.Context, req resource.Impo
 		"The rawtree_s3_ingestion resource does not support import. "+
 			"Please create the resource using Terraform.",
 	)
+}
+
+// buildIngestEndpoint constructs the full ingest path including org/project routing.
+func buildIngestEndpoint(apiURL, org, project, table string) string {
+	return fmt.Sprintf("%s/v1/%s/%s/tables/%s", apiURL, org, project, table)
 }

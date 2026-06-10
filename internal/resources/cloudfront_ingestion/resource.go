@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -70,7 +71,11 @@ func (r *CloudfrontIngestionResource) ModifyPlan(ctx context.Context, req resour
 	}
 	table := plan.Table.ValueString()
 
-	fields := extractFieldsFromList(ctx, plan.Fields)
+	fields, fieldDiags := extractFieldsFromList(ctx, plan.Fields)
+	resp.Diagnostics.Append(fieldDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	plan.APIURL = types.StringValue(r.client.APIURL)
 	plan.EndpointURL = types.StringValue(buildEndpointURL(r.client.APIURL, org, project, table, fields))
@@ -362,7 +367,11 @@ func (r *CloudfrontIngestionResource) Update(ctx context.Context, req resource.U
 	}
 
 	table := plan.Table.ValueString()
-	fields := extractFieldsFromList(ctx, plan.Fields)
+	fields, fieldDiags := extractFieldsFromList(ctx, plan.Fields)
+	resp.Diagnostics.Append(fieldDiags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	endpointURL := buildEndpointURL(r.client.APIURL, org, project, table, fields)
 
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(state.Region))
@@ -450,7 +459,7 @@ func (r *CloudfrontIngestionResource) Delete(ctx context.Context, req resource.D
 	})
 
 	// 1. Detach from distribution.
-	if err := detachFromDistribution(ctx, cfClient, state.DistributionID); err != nil {
+	if err := detachFromDistribution(ctx, cfClient, state.DistributionID, state.RealtimeLogConfigARN); err != nil {
 		resp.Diagnostics.AddWarning("Failed to detach real-time log config from distribution", err.Error())
 	}
 
@@ -505,12 +514,15 @@ func (r *CloudfrontIngestionResource) ImportState(ctx context.Context, req resou
 	)
 }
 
-func extractFieldsFromList(ctx context.Context, fieldList types.List) []string {
+func extractFieldsFromList(ctx context.Context, fieldList types.List) ([]string, diag.Diagnostics) {
 	if fieldList.IsNull() || fieldList.IsUnknown() {
-		return defaultFields
+		return defaultFields, nil
 	}
 	var elems []types.String
-	fieldList.ElementsAs(ctx, &elems, false)
+	diags := fieldList.ElementsAs(ctx, &elems, false)
+	if diags.HasError() {
+		return nil, diags
+	}
 	result := make([]string, 0, len(elems))
 	for _, e := range elems {
 		if !e.IsNull() && !e.IsUnknown() {
@@ -518,9 +530,9 @@ func extractFieldsFromList(ctx context.Context, fieldList types.List) []string {
 		}
 	}
 	if len(result) == 0 {
-		return defaultFields
+		return defaultFields, diags
 	}
-	return result
+	return result, diags
 }
 
 func buildEndpointURL(apiURL, org, project, table string, fields []string) string {

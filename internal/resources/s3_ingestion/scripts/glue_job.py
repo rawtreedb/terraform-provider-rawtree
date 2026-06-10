@@ -57,9 +57,10 @@ try:
     prefix = args.get("PREFIX", "")
     file_pattern = args.get("FILE_PATTERN", "")
     file_format = args["FORMAT"]
-    api_url = args["API_URL"].rstrip("/")
+    api_url = args.get("API_URL", "").rstrip("/")
     api_key = args["API_KEY"]
-    table = args["TABLE"]
+    table = args.get("TABLE", "")
+    ingest_endpoint = args.get("INGEST_ENDPOINT", "")
     concurrency = int(args.get("CONCURRENCY", "10") or "10")
 except Exception as e:
     print(f"FATAL: Failed to parse arguments: {e}")
@@ -119,7 +120,7 @@ def ingest_key(key):
         ExpiresIn=3600,
     )
 
-    endpoint = f"{api_url}/v1/tables/{table}"
+    endpoint = ingest_endpoint if ingest_endpoint else f"{api_url}/v1/tables/{table}"
     params = urllib.parse.urlencode({"url": presigned_url})
     url = f"{endpoint}?{params}"
 
@@ -158,7 +159,8 @@ def ingest_key(key):
 try:
     print(f"Bucket: s3://{bucket}/{prefix}")
     print(f"Format: {file_format}, Pattern: {file_pattern or '(none)'}, Concurrency: {concurrency}")
-    print(f"Target: {api_url}/v1/tables/{table}")
+    target = ingest_endpoint if ingest_endpoint else f"{api_url}/v1/tables/{table}"
+    print(f"Target: {target}")
 
     # Collect matching keys.
     keys = [key for key in list_objects(bucket, prefix) if matches_filter(key)]

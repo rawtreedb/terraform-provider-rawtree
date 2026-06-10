@@ -108,7 +108,7 @@ func attachToDistribution(ctx context.Context, client *cloudfront.Client, distri
 	return nil
 }
 
-func detachFromDistribution(ctx context.Context, client *cloudfront.Client, distributionID string) error {
+func detachFromDistribution(ctx context.Context, client *cloudfront.Client, distributionID, expectedARN string) error {
 	cfg, err := client.GetDistributionConfig(ctx, &cloudfront.GetDistributionConfigInput{
 		Id: aws.String(distributionID),
 	})
@@ -116,7 +116,13 @@ func detachFromDistribution(ctx context.Context, client *cloudfront.Client, dist
 		return fmt.Errorf("getting distribution config %s: %w", distributionID, err)
 	}
 
-	if cfg.DistributionConfig.DefaultCacheBehavior.RealtimeLogConfigArn == nil {
+	currentARN := cfg.DistributionConfig.DefaultCacheBehavior.RealtimeLogConfigArn
+	if currentARN == nil {
+		return nil
+	}
+
+	// Only detach if the distribution still points at the config we own.
+	if aws.ToString(currentARN) != expectedARN {
 		return nil
 	}
 
