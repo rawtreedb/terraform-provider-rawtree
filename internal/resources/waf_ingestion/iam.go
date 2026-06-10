@@ -58,7 +58,7 @@ func createFirehoseRole(ctx context.Context, client *iam.Client, resourceName, b
 					"logs:CreateLogGroup",
 				},
 				Resource: []string{
-					fmt.Sprintf("arn:aws:logs:%s:*:log-group:/aws/firehose/rawtree-*", region),
+					fmt.Sprintf("arn:aws:logs:%s:*:log-group:/aws/firehose/aws-waf-logs-rawtree-*", region),
 				},
 			},
 		},

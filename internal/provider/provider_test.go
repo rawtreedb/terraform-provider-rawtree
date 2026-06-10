@@ -159,8 +159,8 @@ func TestLoadCLIConfig(t *testing.T) {
 	t.Run("invalid json returns empty", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		configDir := filepath.Join(tmpDir, ".config", "rtree")
-		os.MkdirAll(configDir, 0755)
-		os.WriteFile(filepath.Join(configDir, "config.json"), []byte("not json"), 0600)
+		_ = os.MkdirAll(configDir, 0755)
+		_ = os.WriteFile(filepath.Join(configDir, "config.json"), []byte("not json"), 0600)
 
 		t.Setenv("HOME", tmpDir)
 

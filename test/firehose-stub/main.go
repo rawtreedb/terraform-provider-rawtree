@@ -140,11 +140,11 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		fmt.Fprintln(w, "ok")
+		_, _ = fmt.Fprintln(w, "ok")
 	})
 	mux.HandleFunc("/debug/records", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(s.allRecords())
+		_ = json.NewEncoder(w).Encode(s.allRecords())
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -297,8 +297,8 @@ func writeFirehoseResponse(w http.ResponseWriter, requestID string, ts int64, er
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	w.Write(respBytes)
-	w.Write([]byte("\n"))
+	_, _ = w.Write(respBytes)
+	_, _ = w.Write([]byte("\n"))
 }
 
 func indentJSON(data []byte) (string, error) {
@@ -339,5 +339,5 @@ func handleQuery(w http.ResponseWriter, r *http.Request, s *store) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }

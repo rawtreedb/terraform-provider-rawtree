@@ -69,6 +69,23 @@ func createLambdaFunction(ctx context.Context, client *lambda.Client, functionNa
 	return aws.ToString(out.FunctionArn), nil
 }
 
+// updateLambdaCode deploys the latest embedded handler code to an existing Lambda function.
+func updateLambdaCode(ctx context.Context, client *lambda.Client, functionName string) error {
+	zipData, err := buildLambdaZip()
+	if err != nil {
+		return err
+	}
+
+	_, err = client.UpdateFunctionCode(ctx, &lambda.UpdateFunctionCodeInput{
+		FunctionName: aws.String(functionName),
+		ZipFile:      zipData,
+	})
+	if err != nil {
+		return fmt.Errorf("updating Lambda function code: %w", err)
+	}
+	return nil
+}
+
 // updateLambdaEnvVars updates the Lambda function's environment variables.
 func updateLambdaEnvVars(ctx context.Context, client *lambda.Client, functionName string, envVars map[string]string) error {
 	_, err := client.UpdateFunctionConfiguration(ctx, &lambda.UpdateFunctionConfigurationInput{

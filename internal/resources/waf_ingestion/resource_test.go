@@ -80,9 +80,9 @@ func TestExtractBaseURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractBaseURL(tt.input)
+			got := util.ExtractBaseURL(tt.input)
 			if got != tt.expected {
-				t.Errorf("extractBaseURL(%q) = %q, want %q", tt.input, got, tt.expected)
+				t.Errorf("ExtractBaseURL(%q) = %q, want %q", tt.input, got, tt.expected)
 			}
 		})
 	}
@@ -101,7 +101,7 @@ func TestBackupBucketName(t *testing.T) {
 
 	// Must be lowercase alphanumeric + hyphens.
 	for _, c := range bucketName {
-		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' {
 			t.Errorf("invalid character %q in bucket name: %s", string(c), bucketName)
 		}
 	}
