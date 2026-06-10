@@ -101,7 +101,7 @@ func TestBackupBucketName(t *testing.T) {
 
 	// Must be lowercase alphanumeric + hyphens.
 	for _, c := range bucketName {
-		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' {
 			t.Errorf("invalid character %q in bucket name: %s", string(c), bucketName)
 		}
 	}

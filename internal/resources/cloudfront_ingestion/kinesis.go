@@ -44,7 +44,7 @@ func waitForKinesisActive(ctx context.Context, client *kinesis.Client, name stri
 
 		time.Sleep(5 * time.Second)
 	}
-	return "", fmt.Errorf("Kinesis stream %s did not become ACTIVE within %s", name, timeout)
+	return "", fmt.Errorf("kinesis stream %s did not become ACTIVE within %s", name, timeout)
 }
 
 func deleteKinesisStream(ctx context.Context, client *kinesis.Client, name string) error {

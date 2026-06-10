@@ -294,7 +294,7 @@ func testAccCheckRawtreeHasData(tableName string, expectedRows int) resource.Tes
 		if err != nil {
 			return fmt.Errorf("querying Rawtree: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != 200 {
 			var buf [1024]byte
@@ -326,7 +326,9 @@ func testAccCheckRawtreeHasData(tableName string, expectedRows int) resource.Tes
 		case float64:
 			rowCount = int(v)
 		case string:
-			fmt.Sscanf(v, "%d", &rowCount)
+			if _, err := fmt.Sscanf(v, "%d", &rowCount); err != nil {
+				return fmt.Errorf("parsing count %q: %w", v, err)
+			}
 		default:
 			return fmt.Errorf("unexpected count type %T: %v", cnt, cnt)
 		}

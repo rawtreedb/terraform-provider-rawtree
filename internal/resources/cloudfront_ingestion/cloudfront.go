@@ -32,16 +32,6 @@ func createRealtimeLogConfig(ctx context.Context, client *cloudfront.Client, nam
 	return aws.ToString(out.RealtimeLogConfig.ARN), nil
 }
 
-func getRealtimeLogConfig(ctx context.Context, client *cloudfront.Client, name string) (*cftypes.RealtimeLogConfig, error) {
-	out, err := client.GetRealtimeLogConfig(ctx, &cloudfront.GetRealtimeLogConfigInput{
-		Name: aws.String(name),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("getting real-time log config %s: %w", name, err)
-	}
-	return out.RealtimeLogConfig, nil
-}
-
 func updateRealtimeLogConfig(ctx context.Context, client *cloudfront.Client, arn string, fields []string, samplingRate int64, kinesisStreamARN, cfRoleARN string) error {
 	_, err := client.UpdateRealtimeLogConfig(ctx, &cloudfront.UpdateRealtimeLogConfigInput{
 		ARN:          aws.String(arn),

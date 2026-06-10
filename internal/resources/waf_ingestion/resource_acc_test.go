@@ -415,7 +415,7 @@ func generateCloudFrontTraffic(domain string, numRequests int) error {
 		if err != nil {
 			return fmt.Errorf("request %d failed: %w", i, err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -469,7 +469,7 @@ func queryRawtreeCount(url, apiKey, body string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		return 0, fmt.Errorf("query returned status %d", resp.StatusCode)
@@ -495,7 +495,9 @@ func queryRawtreeCount(url, apiKey, body string) (int, error) {
 		return int(v), nil
 	case string:
 		var n int
-		fmt.Sscanf(v, "%d", &n)
+		if _, err := fmt.Sscanf(v, "%d", &n); err != nil {
+			return 0, fmt.Errorf("parsing cnt %q: %w", v, err)
+		}
 		return n, nil
 	default:
 		return 0, fmt.Errorf("unexpected cnt type %T", cnt)

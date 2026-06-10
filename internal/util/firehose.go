@@ -26,12 +26,12 @@ func WaitForFirehoseActive(ctx context.Context, client *firehose.Client, name st
 		case fhtypes.DeliveryStreamStatusActive:
 			return nil
 		case fhtypes.DeliveryStreamStatusCreatingFailed:
-			return fmt.Errorf("Firehose %s creation failed", name)
+			return fmt.Errorf("firehose %s creation failed", name)
 		}
 
 		time.Sleep(5 * time.Second)
 	}
-	return fmt.Errorf("Firehose %s did not become ACTIVE within %s", name, timeout)
+	return fmt.Errorf("firehose %s did not become ACTIVE within %s", name, timeout)
 }
 
 func DeleteDeliveryStream(ctx context.Context, client *firehose.Client, name string) error {
@@ -59,5 +59,5 @@ func WaitForFirehoseDeleted(ctx context.Context, client *firehose.Client, name s
 		}
 		time.Sleep(5 * time.Second)
 	}
-	return fmt.Errorf("Firehose %s was not deleted within %s", name, timeout)
+	return fmt.Errorf("firehose %s was not deleted within %s", name, timeout)
 }

@@ -106,7 +106,7 @@ func updateDeliveryStream(ctx context.Context, client *firehose.Client, name str
 	versionID := desc.DeliveryStreamDescription.VersionId
 
 	if len(desc.DeliveryStreamDescription.Destinations) == 0 {
-		return fmt.Errorf("Firehose %s has no destinations configured", name)
+		return fmt.Errorf("firehose %s has no destinations configured", name)
 	}
 	destinationID := desc.DeliveryStreamDescription.Destinations[0].DestinationId
 
