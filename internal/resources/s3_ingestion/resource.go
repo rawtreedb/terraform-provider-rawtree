@@ -138,15 +138,15 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	ingestEndpoint := buildIngestEndpoint(r.client.APIURL, org, project, table)
 
 	glueParams := map[string]string{
-		"BUCKET":           bucket,
-		"PREFIX":           prefix,
-		"FILE_PATTERN":     filePattern,
-		"FORMAT":           format,
-		"API_URL":          r.client.APIURL,
-		"API_KEY":          r.client.APIKey,
-		"TABLE":            table,
-		"INGEST_ENDPOINT":  ingestEndpoint,
-		"CONCURRENCY":      "10",
+		"BUCKET":          bucket,
+		"PREFIX":          prefix,
+		"FILE_PATTERN":    filePattern,
+		"FORMAT":          format,
+		"API_URL":         r.client.APIURL,
+		"API_KEY":         r.client.APIKey,
+		"TABLE":           table,
+		"INGEST_ENDPOINT": ingestEndpoint,
+		"CONCURRENCY":     "10",
 	}
 
 	if err := createGlueJob(ctx, glueClient, glueJobName, glueRoleARN, scriptBucket, scriptKey, glueParams); err != nil {
@@ -174,13 +174,13 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	state.LambdaFunctionName = lambdaFunctionName
 
 	lambdaEnvVars := map[string]string{
-		"API_URL":          r.client.APIURL,
-		"API_KEY":          r.client.APIKey,
-		"TABLE":            table,
-		"FORMAT":           format,
-		"FILE_PATTERN":     filePattern,
-		"PREFIX":           prefix,
-		"INGEST_ENDPOINT":  ingestEndpoint,
+		"API_URL":         r.client.APIURL,
+		"API_KEY":         r.client.APIKey,
+		"TABLE":           table,
+		"FORMAT":          format,
+		"FILE_PATTERN":    filePattern,
+		"PREFIX":          prefix,
+		"INGEST_ENDPOINT": ingestEndpoint,
 	}
 
 	lambdaARN, err := createLambdaFunction(ctx, lambdaClient, lambdaFunctionName, lambdaRoleARN, lambdaEnvVars)
@@ -338,13 +338,13 @@ func (r *S3IngestionResource) Update(ctx context.Context, req resource.UpdateReq
 
 	// Update Lambda environment variables.
 	envVars := map[string]string{
-		"API_URL":          r.client.APIURL,
-		"API_KEY":          r.client.APIKey,
-		"TABLE":            plan.Table.ValueString(),
-		"FORMAT":           plan.Format.ValueString(),
-		"FILE_PATTERN":     plan.FilePattern.ValueString(),
-		"PREFIX":           plan.Prefix.ValueString(),
-		"INGEST_ENDPOINT":  ingestEndpoint,
+		"API_URL":         r.client.APIURL,
+		"API_KEY":         r.client.APIKey,
+		"TABLE":           plan.Table.ValueString(),
+		"FORMAT":          plan.Format.ValueString(),
+		"FILE_PATTERN":    plan.FilePattern.ValueString(),
+		"PREFIX":          plan.Prefix.ValueString(),
+		"INGEST_ENDPOINT": ingestEndpoint,
 	}
 
 	if err := updateLambdaCode(ctx, lambdaClient, state.LambdaFunctionName); err != nil {
