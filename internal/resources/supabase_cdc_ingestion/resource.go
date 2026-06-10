@@ -358,7 +358,16 @@ func (r *SupabaseCDCIngestionResource) Update(ctx context.Context, req resource.
 
 func (r *SupabaseCDCIngestionResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	state, _, ok := readPrivateState(ctx, req.Private, &resp.Diagnostics)
-	if resp.Diagnostics.HasError() || !ok {
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Missing Internal State",
+			"Cannot destroy because private AWS resource state is missing. "+
+				"ECS services, IAM roles, CloudWatch log groups, and Secrets Manager secrets may still exist in AWS. "+
+				"Remove them manually, then use `terraform state rm` to drop this resource from state.",
+		)
 		return
 	}
 

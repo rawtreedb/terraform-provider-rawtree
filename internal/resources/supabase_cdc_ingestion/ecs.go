@@ -106,10 +106,12 @@ func createService(ctx context.Context, client *ecs.Client, cfg resolvedConfig, 
 }
 
 func isServiceAlreadyExists(err error) bool {
+	if err == nil {
+		return false
+	}
 	var apiErr interface{ ErrorCode() string }
-	if errors.As(err, &apiErr) {
-		code := apiErr.ErrorCode()
-		return code == "InvalidParameterException" || code == "ServiceAlreadyExists"
+	if errors.As(err, &apiErr) && apiErr.ErrorCode() == "ServiceAlreadyExists" {
+		return true
 	}
 	return strings.Contains(err.Error(), "Creation of service was not idempotent")
 }
