@@ -7,6 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.14
 	github.com/aws/aws-sdk-go-v2/service/cloudfront v1.63.0
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.74.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.79.1
 	github.com/aws/aws-sdk-go-v2/service/eventbridge v1.45.23
 	github.com/aws/aws-sdk-go-v2/service/firehose v1.42.16
 	github.com/aws/aws-sdk-go-v2/service/glue v1.139.1
@@ -14,6 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.7
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.89.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.99.0
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.7
 	github.com/aws/aws-sdk-go-v2/service/wafv2 v1.71.5
 	github.com/hashicorp/terraform-plugin-framework v1.19.0
 	github.com/hashicorp/terraform-plugin-framework-validators v0.19.0

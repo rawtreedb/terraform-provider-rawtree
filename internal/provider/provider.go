@@ -16,6 +16,7 @@ import (
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/client"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/cloudfront_ingestion"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/s3_ingestion"
+	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/supabase_cdc_ingestion"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/waf_ingestion"
 )
 
@@ -142,6 +143,7 @@ func (p *RawtreeProvider) Resources(_ context.Context) []func() resource.Resourc
 	return []func() resource.Resource{
 		cloudfront_ingestion.NewResource,
 		s3_ingestion.NewResource,
+		supabase_cdc_ingestion.NewResource,
 		waf_ingestion.NewResource,
 	}
 }

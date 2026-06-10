@@ -140,11 +140,15 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		_, _ = fmt.Fprintln(w, "ok")
+		if _, err := fmt.Fprintln(w, "ok"); err != nil {
+			log.Printf("[healthz] writing response: %s", err)
+		}
 	})
 	mux.HandleFunc("/debug/records", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(s.allRecords())
+		if err := json.NewEncoder(w).Encode(s.allRecords()); err != nil {
+			log.Printf("[debug] encoding records: %s", err)
+		}
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -297,8 +301,12 @@ func writeFirehoseResponse(w http.ResponseWriter, requestID string, ts int64, er
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_, _ = w.Write(respBytes)
-	_, _ = w.Write([]byte("\n"))
+	if _, err := w.Write(respBytes); err != nil {
+		log.Printf("[firehose] writing response body: %s", err)
+	}
+	if _, err := w.Write([]byte("\n")); err != nil {
+		log.Printf("[firehose] writing response newline: %s", err)
+	}
 }
 
 func indentJSON(data []byte) (string, error) {
@@ -339,5 +347,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request, s *store) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("[query] encoding response: %s", err)
+	}
 }
