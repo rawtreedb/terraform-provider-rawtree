@@ -113,7 +113,7 @@ func resolveConfig(ctx context.Context, plan *SupabaseCDCIngestionModel, c *clie
 		TLSRootCertPEM:        stringValue(plan.TLSRootCertPEM),
 		TLSRootCertSecretARN:  stringValue(plan.TLSRootCertSecretARN),
 		LogRetentionDays:      plan.LogRetentionDays.ValueInt64(),
-		RunInitializationTask: boolValue(plan.RunInitializationTask),
+		RunInitializationTask: boolValueDefault(plan.RunInitializationTask, true),
 		InitCommand:           initCommand,
 		WorkerCommand:         workerCommand,
 		Environment:           env,
@@ -289,6 +289,13 @@ func stringValue(value types.String) string {
 func boolValue(value types.Bool) bool {
 	if value.IsNull() || value.IsUnknown() {
 		return false
+	}
+	return value.ValueBool()
+}
+
+func boolValueDefault(value types.Bool, def bool) bool {
+	if value.IsNull() || value.IsUnknown() {
+		return def
 	}
 	return value.ValueBool()
 }
