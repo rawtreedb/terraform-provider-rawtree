@@ -3,14 +3,11 @@ package cloudfront_ingestion
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/firehose"
 	fhtypes "github.com/aws/aws-sdk-go-v2/service/firehose/types"
-
-	"github.com/rawtreedb/terraform-provider-rawtree/internal/util"
 )
 
 type firehoseConfig struct {
@@ -98,10 +95,6 @@ func createDeliveryStream(ctx context.Context, client *firehose.Client, logsClie
 	return aws.ToString(out.DeliveryStreamARN), nil
 }
 
-func waitForFirehoseActive(ctx context.Context, client *firehose.Client, name string, timeout time.Duration) error {
-	return util.WaitForFirehoseActive(ctx, client, name, timeout)
-}
-
 func updateDeliveryStream(ctx context.Context, client *firehose.Client, name string, cfg firehoseConfig) error {
 	desc, err := client.DescribeDeliveryStream(ctx, &firehose.DescribeDeliveryStreamInput{
 		DeliveryStreamName: aws.String(name),
@@ -149,12 +142,4 @@ func updateDeliveryStream(ctx context.Context, client *firehose.Client, name str
 	}
 
 	return nil
-}
-
-func deleteDeliveryStream(ctx context.Context, client *firehose.Client, name string) error {
-	return util.DeleteDeliveryStream(ctx, client, name)
-}
-
-func waitForFirehoseDeleted(ctx context.Context, client *firehose.Client, name string, timeout time.Duration) error {
-	return util.WaitForFirehoseDeleted(ctx, client, name, timeout)
 }

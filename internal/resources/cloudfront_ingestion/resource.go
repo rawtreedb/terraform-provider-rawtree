@@ -222,7 +222,7 @@ func (r *CloudfrontIngestionResource) Create(ctx context.Context, req resource.C
 	})
 
 	// Step 8: Wait for Firehose ACTIVE.
-	if err := waitForFirehoseActive(ctx, firehoseClient, firehoseName, 3*time.Minute); err != nil {
+	if err := util.WaitForFirehoseActive(ctx, firehoseClient, firehoseName, 3*time.Minute); err != nil {
 		resp.Diagnostics.AddError("Firehose did not become active", err.Error())
 		return
 	}
@@ -462,10 +462,10 @@ func (r *CloudfrontIngestionResource) Delete(ctx context.Context, req resource.D
 	}
 
 	// 3. Delete Firehose delivery stream.
-	if err := deleteDeliveryStream(ctx, firehoseClient, state.FirehoseName); err != nil {
+	if err := util.DeleteDeliveryStream(ctx, firehoseClient, state.FirehoseName); err != nil {
 		resp.Diagnostics.AddWarning("Failed to delete Firehose delivery stream", err.Error())
 	} else {
-		if err := waitForFirehoseDeleted(ctx, firehoseClient, state.FirehoseName, 5*time.Minute); err != nil {
+		if err := util.WaitForFirehoseDeleted(ctx, firehoseClient, state.FirehoseName, 5*time.Minute); err != nil {
 			resp.Diagnostics.AddWarning("Firehose deletion timeout", err.Error())
 		}
 	}
