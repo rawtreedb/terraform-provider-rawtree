@@ -8,6 +8,7 @@ The Rawtree Terraform provider enables automated data ingestion from AWS sources
 |----------|-------------|------|
 | [`rawtree_s3_ingestion`](docs/resources/s3_ingestion.md) | Batch + streaming ingestion from S3 via Glue, Lambda, and EventBridge | [Full docs](docs/resources/s3_ingestion.md) |
 | [`rawtree_waf_ingestion`](docs/resources/waf_ingestion.md) | Real-time AWS WAF log streaming via Kinesis Data Firehose | [Full docs](docs/resources/waf_ingestion.md) |
+| [`rawtree_cloudfront_ingestion`](docs/resources/cloudfront_ingestion.md) | Real-time CloudFront access log streaming via Kinesis and Firehose | [Full docs](docs/resources/cloudfront_ingestion.md) |
 
 ## Features
 
@@ -24,6 +25,13 @@ The Rawtree Terraform provider enables automated data ingestion from AWS sources
 - **Zero code**: No Lambda or Glue required — Firehose delivers to the Rawtree HTTP endpoint
 - **S3 backup**: Failed deliveries are automatically backed up with configurable retention
 - **Configurable buffering**: Tune delivery latency vs. throughput with buffer size and interval settings
+
+### CloudFront Ingestion (`rawtree_cloudfront_ingestion`)
+
+- **Real-time streaming**: Stream CloudFront access logs to Rawtree via Kinesis Data Stream and Firehose
+- **Configurable fields**: Choose which CloudFront log fields to include (20 recommended fields by default)
+- **Sampling**: Control the percentage of requests that generate log records (1-100%)
+- **S3 backup**: Failed deliveries are automatically backed up with a 30-day lifecycle policy
 
 ## Requirements
 
@@ -86,9 +94,20 @@ resource "rawtree_waf_ingestion" "waf_logs" {
 }
 ```
 
+### CloudFront Log Ingestion
+
+```hcl
+resource "rawtree_cloudfront_ingestion" "logs" {
+  table           = "cloudfront_logs"
+  distribution_id = "E1234567890ABC"
+  region          = "us-east-1"
+}
+```
+
 See the full resource documentation for detailed schema, AWS resources created, and configuration options:
 - [`rawtree_s3_ingestion`](docs/resources/s3_ingestion.md)
 - [`rawtree_waf_ingestion`](docs/resources/waf_ingestion.md)
+- [`rawtree_cloudfront_ingestion`](docs/resources/cloudfront_ingestion.md)
 
 ## Required AWS Permissions
 
@@ -156,6 +175,29 @@ Firehose, WAFv2, and S3 permissions. See [`docs/resources/waf_ingestion.md`](doc
 }
 ```
 
+### For `rawtree_cloudfront_ingestion`
+
+Kinesis, Firehose, CloudFront, and S3 permissions. See [`docs/resources/cloudfront_ingestion.md`](docs/resources/cloudfront_ingestion.md) for the full list of AWS resources created.
+
+```json
+{
+  "Sid": "CloudFrontIngestion",
+  "Effect": "Allow",
+  "Action": [
+    "kinesis:CreateStream", "kinesis:DeleteStream", "kinesis:DescribeStreamSummary",
+    "firehose:CreateDeliveryStream", "firehose:DeleteDeliveryStream",
+    "firehose:DescribeDeliveryStream", "firehose:UpdateDestination",
+    "cloudfront:CreateRealtimeLogConfig", "cloudfront:DeleteRealtimeLogConfig",
+    "cloudfront:GetRealtimeLogConfig", "cloudfront:UpdateRealtimeLogConfig",
+    "cloudfront:GetDistributionConfig", "cloudfront:UpdateDistribution",
+    "s3:CreateBucket", "s3:DeleteBucket", "s3:HeadBucket",
+    "s3:PutBucketLifecycleConfiguration", "s3:PutBucketTagging",
+    "s3:ListBucket", "s3:DeleteObject", "s3:ListBucketMultipartUploads"
+  ],
+  "Resource": "*"
+}
+```
+
 > **Tip**: Scope `Resource` to specific ARNs in production. The examples above use `*` for simplicity.
 
 ## Development
@@ -176,6 +218,7 @@ go test -v ./...
 # See test/README.md for setup instructions
 TF_ACC=1 go test -v -timeout 30m ./internal/resources/s3_ingestion/
 TF_ACC=1 go test -v -timeout 30m ./internal/resources/waf_ingestion/
+TF_ACC=1 go test -v -timeout 30m ./internal/resources/cloudfront_ingestion/
 ```
 
 ### Using a local build

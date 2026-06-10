@@ -16,7 +16,8 @@ terraform init
 terraform apply
 ```
 
-This creates an S3 bucket with sample data and a WAFv2 Web ACL for testing:
+This creates an S3 bucket with sample data, a WAFv2 Web ACL, and a CloudFront
+distribution for testing:
 
 ```
 s3://rawtree-provider-test-<suffix>/
@@ -33,6 +34,7 @@ Copy the output from `terraform apply` and add your Rawtree credentials:
 # From terraform output
 export RAWTREE_TEST_S3_BUCKET="rawtree-provider-test-..."
 export RAWTREE_TEST_WAF_WEB_ACL_ARN="arn:aws:wafv2:..."
+export RAWTREE_TEST_CF_DISTRIBUTION_ID="E23M245BXXXXXX"
 export AWS_REGION="us-east-1"
 
 # Your Rawtree credentials
@@ -43,11 +45,11 @@ export RAWTREE_PROJECT="my-project"
 # Run S3 ingestion tests
 TF_ACC=1 go test -v -timeout 30m ./internal/resources/s3_ingestion/
 
-# Run WAF ingestion tests (infrastructure-only)
-TF_ACC=1 go test -v -timeout 30m ./internal/resources/waf_ingestion/
+# Run WAF ingestion tests (all: unit + infra provisioning + E2E data validation)
+TF_ACC=1 go test -v -timeout 45m ./internal/resources/waf_ingestion/
 
-# Run WAF E2E test only (creates CloudFront + generates traffic)
-TF_ACC=1 go test -v -timeout 45m -run TestAccWafIngestion_endToEndData ./internal/resources/waf_ingestion/
+# Run CloudFront ingestion tests (all: unit + infra provisioning + E2E data validation)
+TF_ACC=1 go test -v -timeout 60m ./internal/resources/cloudfront_ingestion/
 ```
 
 ## 3. Firehose Transform Stub
@@ -117,7 +119,34 @@ curl -X POST 'http://localhost:9876/v1/myorg/myproj/query' \
 curl http://localhost:9876/debug/records
 ```
 
-## 4. Clean up
+## 4. Running individual E2E tests
+
+Each resource package includes an end-to-end test that provisions real infrastructure,
+generates traffic, and validates data arrives in Rawtree. These run as part of the
+full suite above, but you can target them individually:
+
+```sh
+# WAF E2E only (~9 min — creates Firehose, generates WAF traffic, queries Rawtree)
+TF_ACC=1 go test -v -timeout 45m -run TestAccWafIngestion_endToEndData ./internal/resources/waf_ingestion/
+
+# CloudFront E2E only (~10 min — creates distribution + real-time logs, validates data)
+TF_ACC=1 go test -v -timeout 60m -run TestAccCloudfrontIngestion_endToEndData ./internal/resources/cloudfront_ingestion/
+```
+
+## 5. Interactive lab (manual testing)
+
+The `lab/` directory creates a single CloudFront distribution with WAF + real-time
+logs, ingesting both into Rawtree. Use it for manual testing and demos.
+
+```sh
+cd test/lab
+terraform apply
+./generate-traffic.sh <cloudfront-domain>
+```
+
+See [lab/README.md](lab/README.md) for details.
+
+## 6. Clean up
 
 ```sh
 cd test/setup

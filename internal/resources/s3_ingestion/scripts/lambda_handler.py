@@ -7,8 +7,6 @@ URL for the new object and sends it to the Rawtree API for direct ingestion.
 Environment variables:
   API_URL: Rawtree API base URL
   API_KEY: Rawtree API key
-  ORG: Rawtree organization name
-  PROJECT: Rawtree project name
   TABLE: Rawtree table name
   FORMAT: Expected file format (json, csv, parquet)
   FILE_PATTERN: Optional regex pattern for filtering keys
@@ -25,14 +23,13 @@ import boto3
 s3_client = boto3.client("s3")
 
 # Configuration from environment.
-API_URL = os.environ["API_URL"].rstrip("/")
+API_URL = os.environ.get("API_URL", "").rstrip("/")
 API_KEY = os.environ["API_KEY"]
-ORG = os.environ["ORG"]
-PROJECT = os.environ["PROJECT"]
-TABLE = os.environ["TABLE"]
+TABLE = os.environ.get("TABLE", "")
 FORMAT = os.environ.get("FORMAT", "")
 FILE_PATTERN = os.environ.get("FILE_PATTERN", "")
 PREFIX = os.environ.get("PREFIX", "")
+INGEST_ENDPOINT = os.environ.get("INGEST_ENDPOINT", "")
 
 # Compile regex once (cold start).
 PATTERN = re.compile(FILE_PATTERN) if FILE_PATTERN else None
@@ -81,7 +78,7 @@ def handler(event, context):
     )
 
     # Send to Rawtree API.
-    endpoint = f"{API_URL}/v1/{ORG}/{PROJECT}/tables/{TABLE}"
+    endpoint = INGEST_ENDPOINT if INGEST_ENDPOINT else f"{API_URL}/v1/tables/{TABLE}"
     params = urllib.parse.urlencode({"url": presigned_url})
     url = f"{endpoint}?{params}"
 

@@ -37,10 +37,10 @@ func TestBuildLambdaZip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open zip entry: %s", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(f)
+	_, _ = buf.ReadFrom(f)
 	content := buf.String()
 
 	if len(content) == 0 {

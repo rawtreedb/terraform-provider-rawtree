@@ -278,13 +278,11 @@ func testAccCheckRawtreeHasData(tableName string, expectedRows int) resource.Tes
 			apiURL = "https://api.us-east-1.aws.rawtree.dev"
 		}
 		apiKey := os.Getenv("RAWTREE_API_KEY")
-		org := os.Getenv("RAWTREE_ORG")
-		project := os.Getenv("RAWTREE_PROJECT")
 
 		query := fmt.Sprintf(`SELECT count() as cnt FROM %s`, tableName)
 		body := fmt.Sprintf(`{"sql":%q}`, query)
 
-		url := fmt.Sprintf("%s/v1/%s/%s/query", apiURL, org, project)
+		url := fmt.Sprintf("%s/v1/query", apiURL)
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		if err != nil {
 			return fmt.Errorf("creating query request: %w", err)
@@ -296,7 +294,7 @@ func testAccCheckRawtreeHasData(tableName string, expectedRows int) resource.Tes
 		if err != nil {
 			return fmt.Errorf("querying Rawtree: %w", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != 200 {
 			var buf [1024]byte
@@ -328,7 +326,9 @@ func testAccCheckRawtreeHasData(tableName string, expectedRows int) resource.Tes
 		case float64:
 			rowCount = int(v)
 		case string:
-			fmt.Sscanf(v, "%d", &rowCount)
+			if _, err := fmt.Sscanf(v, "%d", &rowCount); err != nil {
+				return fmt.Errorf("parsing count %q: %w", v, err)
+			}
 		default:
 			return fmt.Errorf("unexpected count type %T: %v", cnt, cnt)
 		}

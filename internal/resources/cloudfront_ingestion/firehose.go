@@ -1,27 +1,26 @@
-package waf_ingestion
+package cloudfront_ingestion
 
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/firehose"
 	fhtypes "github.com/aws/aws-sdk-go-v2/service/firehose/types"
-
-	"github.com/rawtreedb/terraform-provider-rawtree/internal/util"
 )
 
 type firehoseConfig struct {
 	Name             string
 	EndpointURL      string
 	AccessKey        string
-	RoleARN          string
+	FirehoseRoleARN  string
+	KinesisStreamARN string
 	BucketARN        string
 	BufferingSizeMB  int32
 	BufferingSeconds int32
 	S3BackupMode     string
+	Region           string
 }
 
 func createDeliveryStream(ctx context.Context, client *firehose.Client, logsClient *cloudwatchlogs.Client, cfg firehoseConfig) (string, error) {
@@ -33,6 +32,7 @@ func createDeliveryStream(ctx context.Context, client *firehose.Client, logsClie
 	logGroup := fmt.Sprintf("/aws/firehose/%s", cfg.Name)
 	logStream := "HttpEndpointDelivery"
 
+	// Pre-create log group + stream. Firehose won't create the stream itself.
 	_, _ = logsClient.CreateLogGroup(ctx, &cloudwatchlogs.CreateLogGroupInput{
 		LogGroupName: aws.String(logGroup),
 	})
@@ -47,7 +47,11 @@ func createDeliveryStream(ctx context.Context, client *firehose.Client, logsClie
 
 	input := &firehose.CreateDeliveryStreamInput{
 		DeliveryStreamName: aws.String(cfg.Name),
-		DeliveryStreamType: fhtypes.DeliveryStreamTypeDirectPut,
+		DeliveryStreamType: fhtypes.DeliveryStreamTypeKinesisStreamAsSource,
+		KinesisStreamSourceConfiguration: &fhtypes.KinesisStreamSourceConfiguration{
+			KinesisStreamARN: aws.String(cfg.KinesisStreamARN),
+			RoleARN:          aws.String(cfg.FirehoseRoleARN),
+		},
 		HttpEndpointDestinationConfiguration: &fhtypes.HttpEndpointDestinationConfiguration{
 			EndpointConfiguration: &fhtypes.HttpEndpointConfiguration{
 				Url:       aws.String(cfg.EndpointURL),
@@ -58,11 +62,11 @@ func createDeliveryStream(ctx context.Context, client *firehose.Client, logsClie
 				SizeInMBs:         aws.Int32(cfg.BufferingSizeMB),
 				IntervalInSeconds: aws.Int32(cfg.BufferingSeconds),
 			},
-			RoleARN:      aws.String(cfg.RoleARN),
+			RoleARN:      aws.String(cfg.FirehoseRoleARN),
 			S3BackupMode: backupMode,
 			S3Configuration: &fhtypes.S3DestinationConfiguration{
 				BucketARN: aws.String(cfg.BucketARN),
-				RoleARN:   aws.String(cfg.RoleARN),
+				RoleARN:   aws.String(cfg.FirehoseRoleARN),
 				BufferingHints: &fhtypes.BufferingHints{
 					SizeInMBs:         aws.Int32(5),
 					IntervalInSeconds: aws.Int32(300),
@@ -89,10 +93,6 @@ func createDeliveryStream(ctx context.Context, client *firehose.Client, logsClie
 	}
 
 	return aws.ToString(out.DeliveryStreamARN), nil
-}
-
-func waitForFirehoseActive(ctx context.Context, client *firehose.Client, name string, timeout time.Duration) error {
-	return util.WaitForFirehoseActive(ctx, client, name, timeout)
 }
 
 func updateDeliveryStream(ctx context.Context, client *firehose.Client, name string, cfg firehoseConfig) error {
@@ -129,11 +129,11 @@ func updateDeliveryStream(ctx context.Context, client *firehose.Client, name str
 				SizeInMBs:         aws.Int32(cfg.BufferingSizeMB),
 				IntervalInSeconds: aws.Int32(cfg.BufferingSeconds),
 			},
-			RoleARN:      aws.String(cfg.RoleARN),
+			RoleARN:      aws.String(cfg.FirehoseRoleARN),
 			S3BackupMode: backupMode,
 			S3Update: &fhtypes.S3DestinationUpdate{
 				BucketARN: aws.String(cfg.BucketARN),
-				RoleARN:   aws.String(cfg.RoleARN),
+				RoleARN:   aws.String(cfg.FirehoseRoleARN),
 			},
 		},
 	})
@@ -142,12 +142,4 @@ func updateDeliveryStream(ctx context.Context, client *firehose.Client, name str
 	}
 
 	return nil
-}
-
-func deleteDeliveryStream(ctx context.Context, client *firehose.Client, name string) error {
-	return util.DeleteDeliveryStream(ctx, client, name)
-}
-
-func waitForFirehoseDeleted(ctx context.Context, client *firehose.Client, name string, timeout time.Duration) error {
-	return util.WaitForFirehoseDeleted(ctx, client, name, timeout)
 }

@@ -107,7 +107,7 @@ func stopRunningGlueJobRuns(ctx context.Context, glueClient *glue.Client, jobNam
 		return
 	}
 
-	glueClient.BatchStopJobRun(ctx, &glue.BatchStopJobRunInput{
+	_, _ = glueClient.BatchStopJobRun(ctx, &glue.BatchStopJobRunInput{
 		JobName:   aws.String(jobName),
 		JobRunIds: activeIDs,
 	})
