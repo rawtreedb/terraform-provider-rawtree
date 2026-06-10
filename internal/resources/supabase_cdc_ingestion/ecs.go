@@ -15,6 +15,18 @@ import (
 )
 
 func createCluster(ctx context.Context, client *ecs.Client, name string) (string, error) {
+	desc, err := client.DescribeClusters(ctx, &ecs.DescribeClustersInput{
+		Clusters: []string{name},
+	})
+	if err != nil {
+		return "", fmt.Errorf("describing ECS cluster %s: %w", name, err)
+	}
+	for _, c := range desc.Clusters {
+		if c.Status != nil && aws.ToString(c.Status) == "ACTIVE" {
+			return aws.ToString(c.ClusterArn), nil
+		}
+	}
+
 	out, err := client.CreateCluster(ctx, &ecs.CreateClusterInput{
 		ClusterName: aws.String(name),
 		Tags: []ecstypes.Tag{
