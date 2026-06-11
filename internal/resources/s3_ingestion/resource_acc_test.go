@@ -201,7 +201,7 @@ func testAccCheckS3IngestionExists(resourceName string) resource.TestCheckFunc {
 				JobName: &glueJobName,
 			})
 			if err != nil {
-				return fmt.Errorf("Glue job %s not found: %w", glueJobName, err)
+				return fmt.Errorf("glue job %s not found: %w", glueJobName, err)
 			}
 		}
 
@@ -213,7 +213,7 @@ func testAccCheckS3IngestionExists(resourceName string) resource.TestCheckFunc {
 				FunctionName: &lambdaARN,
 			})
 			if err != nil {
-				return fmt.Errorf("Lambda function %s not found: %w", lambdaARN, err)
+				return fmt.Errorf("lambda function %s not found: %w", lambdaARN, err)
 			}
 		}
 
@@ -259,14 +259,14 @@ func testAccCheckGlueJobSucceeded(resourceName string) resource.TestCheckFunc {
 			case gluetypes.JobRunStateSucceeded:
 				return nil
 			case gluetypes.JobRunStateFailed, gluetypes.JobRunStateStopped, gluetypes.JobRunStateTimeout, gluetypes.JobRunStateError:
-				return fmt.Errorf("Glue job run %s ended with state %s: %s",
+				return fmt.Errorf("glue job run %s ended with state %s: %s",
 					runID, state, aws.ToString(out.JobRun.ErrorMessage))
 			}
 
 			time.Sleep(10 * time.Second)
 		}
 
-		return fmt.Errorf("Glue job run %s did not complete within 5 minutes", runID)
+		return fmt.Errorf("glue job run %s did not complete within 5 minutes", runID)
 	}
 }
 
@@ -299,7 +299,7 @@ func testAccCheckRawtreeHasData(tableName string, expectedRows int) resource.Tes
 		if resp.StatusCode != 200 {
 			var buf [1024]byte
 			n, _ := resp.Body.Read(buf[:])
-			return fmt.Errorf("Rawtree query returned %d: %s", resp.StatusCode, string(buf[:n]))
+			return fmt.Errorf("rawtree query returned %d: %s", resp.StatusCode, string(buf[:n]))
 		}
 
 		var result struct {
@@ -362,7 +362,7 @@ func testAccCheckS3IngestionDestroy(s *terraform.State) error {
 				JobName: &glueJobName,
 			})
 			if err == nil {
-				return fmt.Errorf("Glue job %s still exists after destroy", glueJobName)
+				return fmt.Errorf("glue job %s still exists after destroy", glueJobName)
 			}
 		}
 
@@ -374,7 +374,7 @@ func testAccCheckS3IngestionDestroy(s *terraform.State) error {
 				FunctionName: &lambdaARN,
 			})
 			if err == nil {
-				return fmt.Errorf("Lambda function %s still exists after destroy", lambdaARN)
+				return fmt.Errorf("lambda function %s still exists after destroy", lambdaARN)
 			}
 		}
 
@@ -387,7 +387,7 @@ func testAccCheckS3IngestionDestroy(s *terraform.State) error {
 				Name: &ruleName,
 			})
 			if err == nil {
-				return fmt.Errorf("EventBridge rule %s still exists after destroy", ruleName)
+				return fmt.Errorf("eventbridge rule %s still exists after destroy", ruleName)
 			}
 		}
 
@@ -399,7 +399,7 @@ func testAccCheckS3IngestionDestroy(s *terraform.State) error {
 				RoleName: &roleName,
 			})
 			if err == nil {
-				return fmt.Errorf("IAM role %s still exists after destroy", roleName)
+				return fmt.Errorf("iam role %s still exists after destroy", roleName)
 			}
 		}
 
@@ -412,7 +412,7 @@ func testAccCheckS3IngestionDestroy(s *terraform.State) error {
 			Key:    &scriptKey,
 		})
 		if err == nil {
-			return fmt.Errorf("Glue script %s still exists in bucket %s after destroy", scriptKey, bucket)
+			return fmt.Errorf("glue script %s still exists in bucket %s after destroy", scriptKey, bucket)
 		}
 	}
 

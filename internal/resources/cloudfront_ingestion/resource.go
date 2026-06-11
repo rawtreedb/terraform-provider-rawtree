@@ -430,6 +430,12 @@ func (r *CloudfrontIngestionResource) Delete(ctx context.Context, req resource.D
 	}
 
 	if stateJSON == nil {
+		resp.Diagnostics.AddError(
+			"Missing Internal State",
+			"Cannot destroy because private AWS resource state is missing. "+
+				"AWS resources (Firehose, Kinesis, CloudFront log config, IAM roles, etc.) may still exist. "+
+				"Remove them manually, then use `terraform state rm` to drop this resource from state.",
+		)
 		return
 	}
 

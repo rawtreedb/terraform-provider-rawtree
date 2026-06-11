@@ -86,13 +86,13 @@ func startGlueJobRun(ctx context.Context, glueClient *glue.Client, jobName strin
 // stopRunningGlueJobRuns stops any active runs before deleting the job.
 // In tests, destroy runs seconds after create so jobs are always still running.
 // In production, jobs complete long before destroy and this is a no-op.
-func stopRunningGlueJobRuns(ctx context.Context, glueClient *glue.Client, jobName string) {
+func stopRunningGlueJobRuns(ctx context.Context, glueClient *glue.Client, jobName string) error {
 	runs, err := glueClient.GetJobRuns(ctx, &glue.GetJobRunsInput{
 		JobName:    aws.String(jobName),
 		MaxResults: aws.Int32(10),
 	})
 	if err != nil {
-		return
+		return fmt.Errorf("getting Glue job runs for %s: %w", jobName, err)
 	}
 
 	var activeIDs []string
@@ -104,21 +104,26 @@ func stopRunningGlueJobRuns(ctx context.Context, glueClient *glue.Client, jobNam
 	}
 
 	if len(activeIDs) == 0 {
-		return
+		return nil
 	}
 
-	_, _ = glueClient.BatchStopJobRun(ctx, &glue.BatchStopJobRunInput{
+	if _, err := glueClient.BatchStopJobRun(ctx, &glue.BatchStopJobRunInput{
 		JobName:   aws.String(jobName),
 		JobRunIds: activeIDs,
-	})
+	}); err != nil {
+		return fmt.Errorf("stopping active Glue job runs for %s: %w", jobName, err)
+	}
 
 	// Wait for the stop to take effect before deleting the script.
 	time.Sleep(5 * time.Second)
+	return nil
 }
 
 // deleteGlueJob stops active runs then deletes the Glue job.
 func deleteGlueJob(ctx context.Context, glueClient *glue.Client, jobName string) error {
-	stopRunningGlueJobRuns(ctx, glueClient, jobName)
+	if err := stopRunningGlueJobRuns(ctx, glueClient, jobName); err != nil {
+		return err
+	}
 
 	_, err := glueClient.DeleteJob(ctx, &glue.DeleteJobInput{
 		JobName: aws.String(jobName),

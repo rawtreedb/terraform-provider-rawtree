@@ -383,6 +383,12 @@ func (r *S3IngestionResource) Delete(ctx context.Context, req resource.DeleteReq
 	}
 
 	if stateJSON == nil {
+		resp.Diagnostics.AddError(
+			"Missing Internal State",
+			"Cannot destroy because private AWS resource state is missing. "+
+				"AWS resources (Glue job, Lambda, EventBridge rule, S3 notification, IAM roles, etc.) may still exist. "+
+				"Remove them manually, then use `terraform state rm` to drop this resource from state.",
+		)
 		return
 	}
 

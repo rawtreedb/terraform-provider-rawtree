@@ -368,6 +368,12 @@ func (r *WafIngestionResource) Delete(ctx context.Context, req resource.DeleteRe
 	}
 
 	if stateJSON == nil {
+		resp.Diagnostics.AddError(
+			"Missing Internal State",
+			"Cannot destroy because private AWS resource state is missing. "+
+				"AWS resources (Firehose, WAF logging config, S3 bucket, IAM roles, etc.) may still exist. "+
+				"Remove them manually, then use `terraform state rm` to drop this resource from state.",
+		)
 		return
 	}
 
