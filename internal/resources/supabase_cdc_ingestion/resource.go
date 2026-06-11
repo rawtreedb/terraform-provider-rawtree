@@ -481,4 +481,3 @@ func readPrivateState(ctx context.Context, private privateStateReader, diags *di
 	}
 	return state, stateJSON, true
 }
-

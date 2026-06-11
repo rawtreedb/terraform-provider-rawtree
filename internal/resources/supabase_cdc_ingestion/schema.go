@@ -152,8 +152,8 @@ func resourceSchema() schema.Schema {
 			"run_initialization_task": schema.BoolAttribute{
 				Optional:    true,
 				Computed:    true,
-				Default:     booldefault.StaticBool(true),
-				Description: "Run a one-off ECS task before starting the service to validate/setup the ETL pipeline. Default: true.",
+				Default:     booldefault.StaticBool(false),
+				Description: "Run a short-lived one-off ECS task before starting the service. Only enable this if your image exposes a dedicated init subcommand that exits on success; the default image starts the long-running CDC pipeline and will time out. Default: false.",
 			},
 			"initialization_command": schema.ListAttribute{
 				ElementType: types.StringType,

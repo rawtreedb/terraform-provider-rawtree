@@ -115,7 +115,7 @@ func resolveConfig(ctx context.Context, plan *SupabaseCDCIngestionModel, c *clie
 		TLSRootCertPEM:        stringValue(plan.TLSRootCertPEM),
 		TLSRootCertSecretARN:  stringValue(plan.TLSRootCertSecretARN),
 		LogRetentionDays:      plan.LogRetentionDays.ValueInt64(),
-		RunInitializationTask: boolValueDefault(plan.RunInitializationTask, true),
+		RunInitializationTask: boolValueDefault(plan.RunInitializationTask, false),
 		InitCommand:           initCommand,
 		WorkerCommand:         workerCommand,
 		Environment:           env,
