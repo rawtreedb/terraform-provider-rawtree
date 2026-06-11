@@ -41,29 +41,32 @@ type SupabaseCDCIngestionModel struct {
 	TaskDefinitionARN types.String `tfsdk:"task_definition_arn"`
 	LogGroupName      types.String `tfsdk:"log_group_name"`
 	ExecutionRoleARN  types.String `tfsdk:"execution_role_arn"`
-	RawtreeSecretARN  types.String `tfsdk:"rawtree_secret_arn"`
+	ConfigSecretARN   types.String `tfsdk:"config_secret_arn"`
 }
 
 // awsResourceState tracks all AWS resources created by this resource for cleanup.
 type awsResourceState struct {
-	Region                   string `json:"region"`
-	ResourceName             string `json:"resource_name"`
-	ClusterARN               string `json:"cluster_arn"`
-	ClusterName              string `json:"cluster_name"`
-	ServiceARN               string `json:"service_arn"`
-	ServiceName              string `json:"service_name"`
-	TaskDefinitionARN        string `json:"task_definition_arn"`
-	TaskDefinitionFamily     string `json:"task_definition_family"`
-	ExecutionRoleARN         string `json:"execution_role_arn"`
-	ExecutionRoleName        string `json:"execution_role_name"`
-	ExecutionPolicyARN       string `json:"execution_policy_arn"`
-	LogGroupName             string `json:"log_group_name"`
-	RawtreeSecretARN         string `json:"rawtree_secret_arn"`
-	RawtreeSecretName        string `json:"rawtree_secret_name"`
-	DatabaseURLSecretARN     string `json:"database_url_secret_arn"`
-	DatabaseURLSecretName    string `json:"database_url_secret_name"`
-	ManagedDatabaseURLSecret bool   `json:"managed_database_url_secret"`
-	TLSRootCertSecretARN     string `json:"tls_root_cert_secret_arn"`
-	TLSRootCertSecretName    string `json:"tls_root_cert_secret_name"`
-	ManagedTLSRootCertSecret bool   `json:"managed_tls_root_cert_secret"`
+	Region               string `json:"region"`
+	ResourceName         string `json:"resource_name"`
+	ClusterARN           string `json:"cluster_arn"`
+	ClusterName          string `json:"cluster_name"`
+	ServiceARN           string `json:"service_arn"`
+	ServiceName          string `json:"service_name"`
+	TaskDefinitionARN    string `json:"task_definition_arn"`
+	TaskDefinitionFamily string `json:"task_definition_family"`
+	ExecutionRoleARN     string `json:"execution_role_arn"`
+	ExecutionRoleName    string `json:"execution_role_name"`
+	ExecutionPolicyARN   string `json:"execution_policy_arn"`
+	LogGroupName         string `json:"log_group_name"`
+	// ConfigSecretARN is the managed secret holding the Rawtree API key plus
+	// any inline DATABASE_URL / POSTGRES_TLS_ROOT_CERT_PEM as JSON keys.
+	ConfigSecretARN  string `json:"config_secret_arn"`
+	ConfigSecretName string `json:"config_secret_name"`
+
+	// InitTaskDefinitionARN is set transiently during Create when the
+	// initialization task is registered, and cleared after it deregisters
+	// successfully. Tracked here so the rollback path can deregister an
+	// orphaned init task definition on partial-create failure. Never
+	// persisted to Terraform state — the success path always clears it.
+	InitTaskDefinitionARN string `json:"-"`
 }

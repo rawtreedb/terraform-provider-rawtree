@@ -53,15 +53,17 @@ type resolvedConfig struct {
 }
 
 type ecsNames struct {
-	ClusterName           string
-	ServiceName           string
-	TaskDefinitionFamily  string
-	ContainerName         string
-	LogGroupName          string
-	ExecutionRoleName     string
-	RawtreeSecretName     string
-	DatabaseURLSecretName string
-	TLSRootCertSecretName string
+	ClusterName          string
+	ServiceName          string
+	TaskDefinitionFamily string
+	ContainerName        string
+	LogGroupName         string
+	ExecutionRoleName    string
+	// ConfigSecretName is the single managed Secrets Manager secret holding the
+	// Rawtree API key plus any inline DATABASE_URL / POSTGRES_TLS_ROOT_CERT_PEM
+	// values, encoded as JSON. ECS resolves individual env vars via the
+	// JSON-key valueFrom syntax.
+	ConfigSecretName string
 }
 
 func resolveConfig(ctx context.Context, plan *SupabaseCDCIngestionModel, c *client.RawtreeClient) (resolvedConfig, diag.Diagnostics) {
@@ -161,31 +163,23 @@ func validateResolvedConfig(cfg resolvedConfig, diags *diag.Diagnostics) {
 
 func namesFor(resourceName string) ecsNames {
 	return ecsNames{
-		ClusterName:           fmt.Sprintf("rawtree-supabase-cdc-%s", resourceName),
-		ServiceName:           fmt.Sprintf("rawtree-supabase-cdc-%s", resourceName),
-		TaskDefinitionFamily:  fmt.Sprintf("rawtree-supabase-cdc-%s", resourceName),
-		ContainerName:         "rawtree-supabase-cdc",
-		LogGroupName:          fmt.Sprintf("/aws/ecs/rawtree/supabase-cdc/%s", resourceName),
-		ExecutionRoleName:     fmt.Sprintf("rawtree-ecs-%s", resourceName),
-		RawtreeSecretName:     fmt.Sprintf("rawtree/supabase-cdc/%s/rawtree-api-key", resourceName),
-		DatabaseURLSecretName: fmt.Sprintf("rawtree/supabase-cdc/%s/database-url", resourceName),
-		TLSRootCertSecretName: fmt.Sprintf("rawtree/supabase-cdc/%s/tls-root-cert", resourceName),
+		ClusterName:          fmt.Sprintf("rawtree-supabase-cdc-%s", resourceName),
+		ServiceName:          fmt.Sprintf("rawtree-supabase-cdc-%s", resourceName),
+		TaskDefinitionFamily: fmt.Sprintf("rawtree-supabase-cdc-%s", resourceName),
+		ContainerName:        "rawtree-supabase-cdc",
+		LogGroupName:         fmt.Sprintf("/aws/ecs/rawtree/supabase-cdc/%s", resourceName),
+		ExecutionRoleName:    fmt.Sprintf("rawtree-ecs-%s", resourceName),
+		ConfigSecretName:     fmt.Sprintf("rawtree/supabase-cdc/%s/config", resourceName),
 	}
 }
 
-func buildContainerDefinition(cfg resolvedConfig, names ecsNames, secretARNs secretARNs, command []string) ecstypes.ContainerDefinition {
+func buildContainerDefinition(cfg resolvedConfig, names ecsNames, refs ecsSecretRefs, command []string) ecstypes.ContainerDefinition {
 	env := []ecstypes.KeyValuePair{
 		{Name: strptr("RAWTREE_API_URL"), Value: strptr(cfg.APIURL)},
 		{Name: strptr("RAWTREE_ORG"), Value: strptr(cfg.Organization)},
 		{Name: strptr("RAWTREE_PROJECT"), Value: strptr(cfg.Project)},
 		{Name: strptr("POSTGRES_PUBLICATION"), Value: strptr(cfg.Publication)},
 		{Name: strptr("PIPELINE_ID"), Value: strptr(cfg.PipelineID)},
-	}
-	if secretARNs.TLSRootCertARN != "" {
-		env = append(env, ecstypes.KeyValuePair{
-			Name:  strptr("POSTGRES_TLS_ROOT_CERT_PATH"),
-			Value: strptr("/tmp/supabase-ca.pem"),
-		})
 	}
 	envKeys := make([]string, 0, len(cfg.Environment))
 	for k := range cfg.Environment {
@@ -197,13 +191,15 @@ func buildContainerDefinition(cfg resolvedConfig, names ecsNames, secretARNs sec
 	}
 
 	secrets := []ecstypes.Secret{
-		{Name: strptr("RAWTREE_API_KEY"), ValueFrom: strptr(secretARNs.RawtreeAPIKeyARN)},
-		{Name: strptr("DATABASE_URL"), ValueFrom: strptr(secretARNs.DatabaseURLARN)},
+		{Name: strptr("RAWTREE_API_KEY"), ValueFrom: strptr(refs.APIKey)},
+		{Name: strptr("DATABASE_URL"), ValueFrom: strptr(refs.DatabaseURL)},
 	}
-	if secretARNs.TLSRootCertARN != "" {
+	if refs.TLSRootCert != "" {
+		// POSTGRES_TLS_ROOT_CERTS is the env var the supabase/etl worker
+		// reads PEM content from directly — no file mount needed.
 		secrets = append(secrets, ecstypes.Secret{
-			Name:      strptr("POSTGRES_TLS_ROOT_CERT_PEM"),
-			ValueFrom: strptr(secretARNs.TLSRootCertARN),
+			Name:      strptr("POSTGRES_TLS_ROOT_CERTS"),
+			ValueFrom: strptr(refs.TLSRootCert),
 		})
 	}
 

@@ -1,8 +1,11 @@
 package supabase_cdc_ingestion
 
 import (
+	"regexp"
+
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
@@ -12,6 +15,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// pipelineIDPattern matches a positive integer with no leading zero (matches
+// the u64 input the supabase/etl worker expects via env_u64("PIPELINE_ID")).
+var pipelineIDPattern = regexp.MustCompile(`^([1-9][0-9]*)$`)
 
 const defaultImage = "ghcr.io/rawtreedb/supabase-etl:latest"
 
@@ -45,10 +52,20 @@ func resourceSchema() schema.Schema {
 				Description: "Postgres publication consumed by supabase/etl.",
 			},
 			"pipeline_id": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString("1"),
-				Description: "supabase/etl pipeline identifier. The default produces replication slot supabase_etl_apply_1.",
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString("1"),
+				Description: "supabase/etl pipeline identifier. Must be a positive integer; the worker parses it as a u64 " +
+					"and uses it as the suffix of the Postgres logical replication slot name (`supabase_etl_apply_<id>`). " +
+					"Leave at the default (`1`) unless you intentionally want a second, independent replication stream — " +
+					"the provider does not drop the slot on destroy, so changing the id leaks a slot in the source database " +
+					"that pins WAL until you drop it manually with `pg_drop_replication_slot`.",
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						pipelineIDPattern,
+						"pipeline_id must be a positive integer (e.g. \"1\", \"2\"); the supabase/etl worker parses it as a u64",
+					),
+				},
 			},
 			"image": schema.StringAttribute{
 				Optional:    true,
@@ -194,9 +211,9 @@ func resourceSchema() schema.Schema {
 				Computed:    true,
 				Description: "The IAM execution role used by ECS.",
 			},
-			"rawtree_secret_arn": schema.StringAttribute{
+			"config_secret_arn": schema.StringAttribute{
 				Computed:    true,
-				Description: "The managed Secrets Manager secret ARN containing the Rawtree API key.",
+				Description: "ARN of the managed Secrets Manager secret holding the Rawtree API key — and, when supplied inline, the Supabase database URL and CA certificate — as JSON keys.",
 			},
 		},
 	}

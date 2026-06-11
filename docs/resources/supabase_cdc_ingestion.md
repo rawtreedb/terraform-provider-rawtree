@@ -11,7 +11,9 @@ Manages Supabase Postgres CDC ingestion into Rawtree using a single ECS Fargate 
 
 ## How It Works
 
-1. **Secrets**: The provider creates a managed Secrets Manager secret for the Rawtree API key. The Supabase database URL can be provided as an existing Secrets Manager ARN or as a sensitive Terraform value that the provider stores in a managed secret.
+1. **Secrets**: The provider creates a single managed Secrets Manager secret holding the Rawtree API key as JSON. If `database_url` and/or `tls_root_cert_pem` are passed inline they are added to the same JSON document (keys `DATABASE_URL`, `POSTGRES_TLS_ROOT_CERTS`). ECS reads each value via the JSON-key `valueFrom` syntax and injects it into the container as the env var of the same name. External `database_url_secret_arn` / `tls_root_cert_secret_arn` are referenced directly and not copied.
+
+The supabase/etl worker reads the CA from the `POSTGRES_TLS_ROOT_CERTS` env var directly (as PEM content), so no on-disk file is needed. Supabase direct Postgres uses a private CA that isn't in Mozilla's root bundle — set `tls_root_cert_pem` (or `tls_root_cert_secret_arn`) for any non-local deployment, otherwise TLS verification will fail with `UnknownIssuer`.
 
 2. **Runtime**: The provider creates an ECS cluster, task definition, service, execution role, and CloudWatch log group. The service runs exactly one Fargate task for the CDC worker.
 
@@ -92,15 +94,13 @@ Exactly one of the following is required:
 - `task_definition_arn` (String) - The ARN of the active ECS task definition.
 - `log_group_name` (String) - The CloudWatch Logs group used by the worker.
 - `execution_role_arn` (String) - The IAM execution role used by ECS.
-- `rawtree_secret_arn` (String) - The managed Secrets Manager secret ARN containing the Rawtree API key.
+- `config_secret_arn` (String) - ARN of the managed Secrets Manager secret holding the Rawtree API key — and, when supplied inline, the Supabase database URL and CA certificate — as JSON keys (`RAWTREE_API_KEY`, `DATABASE_URL`, `POSTGRES_TLS_ROOT_CERT_PEM`).
 
 ## AWS Resources Created
 
 | Resource | Name Pattern | Purpose |
 |----------|--------------|---------|
-| Secrets Manager Secret | `rawtree/supabase-cdc/{name}/rawtree-api-key` | Rawtree API key |
-| Secrets Manager Secret | `rawtree/supabase-cdc/{name}/database-url` | Supabase direct Postgres URL, if `database_url` is used |
-| Secrets Manager Secret | `rawtree/supabase-cdc/{name}/tls-root-cert` | Supabase CA PEM, if `tls_root_cert_pem` is used |
+| Secrets Manager Secret | `rawtree/supabase-cdc/{name}/config` | JSON-encoded secret holding `RAWTREE_API_KEY` (always), plus `DATABASE_URL` and/or `POSTGRES_TLS_ROOT_CERT_PEM` when those values are supplied inline. |
 | CloudWatch Log Group | `/aws/ecs/rawtree/supabase-cdc/{name}` | ECS task logs |
 | IAM Role | `rawtree-ecs-{name}` | ECS task execution role |
 | ECS Cluster | `rawtree-supabase-cdc-{name}` | Fargate service cluster |

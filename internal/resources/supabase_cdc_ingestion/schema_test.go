@@ -56,7 +56,7 @@ func TestResourceSchema(t *testing.T) {
 		"task_definition_arn",
 		"log_group_name",
 		"execution_role_arn",
-		"rawtree_secret_arn",
+		"config_secret_arn",
 	}
 	for _, attr := range computedAttrs {
 		a, ok := s.Attributes[attr]

@@ -134,13 +134,13 @@ func TestBuildContainerDefinition(t *testing.T) {
 		Environment:  map[string]string{"EXTRA": "value"},
 	}
 	names := namesFor("org-project-orders")
-	secrets := secretARNs{
-		RawtreeAPIKeyARN: "arn:rawtree",
-		DatabaseURLARN:   "arn:db",
-		TLSRootCertARN:   "arn:ca",
+	refs := ecsSecretRefs{
+		APIKey:      "arn:config:RAWTREE_API_KEY::",
+		DatabaseURL: "arn:config:DATABASE_URL::",
+		TLSRootCert: "arn:config:POSTGRES_TLS_ROOT_CERT_PEM::",
 	}
 
-	def := buildContainerDefinition(cfg, names, secrets, []string{"run"})
+	def := buildContainerDefinition(cfg, names, refs, []string{"run"})
 
 	if def.Image == nil || *def.Image != "example/image:sha" {
 		t.Fatalf("unexpected image: %v", def.Image)
@@ -156,17 +156,32 @@ func TestBuildContainerDefinition(t *testing.T) {
 		env[*kv.Name] = *kv.Value
 	}
 	for k, want := range map[string]string{
-		"RAWTREE_API_URL":             "https://api.example.com",
-		"RAWTREE_ORG":                 "org",
-		"RAWTREE_PROJECT":             "project",
-		"POSTGRES_PUBLICATION":        "rawtree_publication",
-		"PIPELINE_ID":                 "7",
-		"POSTGRES_TLS_ROOT_CERT_PATH": "/tmp/supabase-ca.pem",
-		"EXTRA":                       "value",
+		"RAWTREE_API_URL":      "https://api.example.com",
+		"RAWTREE_ORG":          "org",
+		"RAWTREE_PROJECT":      "project",
+		"POSTGRES_PUBLICATION": "rawtree_publication",
+		"PIPELINE_ID":          "7",
+		"EXTRA":                "value",
 	} {
 		if env[k] != want {
 			t.Fatalf("env %s = %q, want %q", k, env[k], want)
 		}
+	}
+	if _, set := env["POSTGRES_TLS_ROOT_CERT_PATH"]; set {
+		t.Fatal("POSTGRES_TLS_ROOT_CERT_PATH must not be set: the worker reads PEM from POSTGRES_TLS_ROOT_CERTS env var instead of mounting a file")
+	}
+
+	// The TLS secret must be injected under the env var name the worker
+	// reads — POSTGRES_TLS_ROOT_CERTS (plural), not POSTGRES_TLS_ROOT_CERT_PEM.
+	secretNames := map[string]string{}
+	for _, s := range def.Secrets {
+		secretNames[*s.Name] = *s.ValueFrom
+	}
+	if _, ok := secretNames["POSTGRES_TLS_ROOT_CERTS"]; !ok {
+		t.Fatalf("expected POSTGRES_TLS_ROOT_CERTS secret, got %v", secretNames)
+	}
+	if _, ok := secretNames["POSTGRES_TLS_ROOT_CERT_PEM"]; ok {
+		t.Fatal("POSTGRES_TLS_ROOT_CERT_PEM is the wrong env var name; the worker reads POSTGRES_TLS_ROOT_CERTS")
 	}
 	if def.LogConfiguration == nil || def.LogConfiguration.Options["awslogs-group"] != names.LogGroupName {
 		t.Fatalf("missing awslogs config")

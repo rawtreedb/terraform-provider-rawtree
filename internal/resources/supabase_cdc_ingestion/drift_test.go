@@ -99,7 +99,7 @@ func testSupabaseSchemaType() tftypes.Object {
 			"task_definition_arn":      tftypes.String,
 			"log_group_name":           tftypes.String,
 			"execution_role_arn":       tftypes.String,
-			"rawtree_secret_arn":       tftypes.String,
+			"config_secret_arn":        tftypes.String,
 		},
 	}
 }
@@ -138,6 +138,6 @@ func testSupabaseStateValues(apiURL, apiKeyHash, org, project string) map[string
 		"task_definition_arn":      tftypes.NewValue(tftypes.String, "arn:aws:ecs:us-east-1:123456789012:task-definition/rawtree:1"),
 		"log_group_name":           tftypes.NewValue(tftypes.String, "/aws/ecs/rawtree/supabase-cdc/org-project-orders"),
 		"execution_role_arn":       tftypes.NewValue(tftypes.String, "arn:aws:iam::123456789012:role/rawtree-ecs"),
-		"rawtree_secret_arn":       tftypes.NewValue(tftypes.String, "arn:aws:secretsmanager:us-east-1:123456789012:secret:rawtree"),
+		"config_secret_arn":        tftypes.NewValue(tftypes.String, "arn:aws:secretsmanager:us-east-1:123456789012:secret:rawtree-config"),
 	}
 }

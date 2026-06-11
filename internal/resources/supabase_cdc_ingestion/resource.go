@@ -118,52 +118,50 @@ func (r *SupabaseCDCIngestionResource) Create(ctx context.Context, req resource.
 		ServiceName:          names.ServiceName,
 		TaskDefinitionFamily: names.TaskDefinitionFamily,
 		LogGroupName:         names.LogGroupName,
-		RawtreeSecretName:    names.RawtreeSecretName,
+		ConfigSecretName:     names.ConfigSecretName,
 	}
 
-	rawtreeSecretARN, err := util.CreateSecret(ctx, secretsClient, names.RawtreeSecretName, "Rawtree API key for Supabase CDC ingestion", cfg.APIKey)
+	// If anything below this point fails, roll back what's been created so
+	// far. Terraform doesn't persist state on a failed Create, so without this
+	// the secret/log group/role/cluster/etc. would be orphaned in AWS and
+	// block re-runs because of duplicate-name errors. Each cleanup step is
+	// best-effort and runs even if earlier ones fail.
+	defer func() {
+		if !resp.Diagnostics.HasError() {
+			return
+		}
+		var cleanup diag.Diagnostics
+		// preserveLogGroup=true: keep CloudWatch logs around so you can see
+		// why the failed step (init task, service create, etc.) failed.
+		destroyAWSResources(ctx, state, ecsClient, iamClient, logsClient, secretsClient, true, &cleanup)
+		resp.Diagnostics.Append(cleanup...)
+	}()
+
+	configJSON, err := buildConfigSecretJSON(cfg)
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to create Rawtree API key secret", err.Error())
+		resp.Diagnostics.AddError("Failed to build managed config secret payload", err.Error())
 		return
 	}
-	state.RawtreeSecretARN = rawtreeSecretARN
-
-	databaseURLSecretARN := cfg.DatabaseURLSecretARN
-	if cfg.DatabaseURL != "" {
-		databaseURLSecretARN, err = util.CreateSecret(ctx, secretsClient, names.DatabaseURLSecretName, "Supabase direct Postgres URL for Rawtree CDC ingestion", cfg.DatabaseURL)
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to create database URL secret", err.Error())
-			return
-		}
-		state.DatabaseURLSecretName = names.DatabaseURLSecretName
-		state.ManagedDatabaseURLSecret = true
+	configSecretARN, err := util.CreateSecret(
+		ctx, secretsClient, names.ConfigSecretName,
+		"Rawtree managed config (API key + optional Supabase URL/CA) for Supabase CDC ingestion",
+		configJSON,
+	)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to create managed config secret", err.Error())
+		return
 	}
-	state.DatabaseURLSecretARN = databaseURLSecretARN
+	state.ConfigSecretARN = configSecretARN
 
-	tlsSecretARN := cfg.TLSRootCertSecretARN
-	if cfg.TLSRootCertPEM != "" {
-		tlsSecretARN, err = util.CreateSecret(ctx, secretsClient, names.TLSRootCertSecretName, "Supabase database CA certificate for Rawtree CDC ingestion", cfg.TLSRootCertPEM)
-		if err != nil {
-			resp.Diagnostics.AddError("Failed to create TLS root certificate secret", err.Error())
-			return
-		}
-		state.TLSRootCertSecretName = names.TLSRootCertSecretName
-		state.ManagedTLSRootCertSecret = true
-	}
-	state.TLSRootCertSecretARN = tlsSecretARN
-
-	secretARNs := secretARNs{
-		RawtreeAPIKeyARN: rawtreeSecretARN,
-		DatabaseURLARN:   databaseURLSecretARN,
-		TLSRootCertARN:   tlsSecretARN,
-	}
+	refs := buildECSSecretRefs(cfg, configSecretARN)
+	iamSecretARNs := collectSecretARNs(cfg, configSecretARN)
 
 	if err := util.CreateLogGroup(ctx, logsClient, names.LogGroupName, cfg.LogRetentionDays); err != nil {
 		resp.Diagnostics.AddError("Failed to create CloudWatch log group", err.Error())
 		return
 	}
 
-	executionRoleARN, executionRoleName, executionPolicyARN, err := createExecutionRole(ctx, iamClient, cfg.ResourceName, compactStrings(rawtreeSecretARN, databaseURLSecretARN, tlsSecretARN))
+	executionRoleARN, executionRoleName, executionPolicyARN, err := createExecutionRole(ctx, iamClient, cfg.ResourceName, iamSecretARNs)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create ECS execution role", err.Error())
 		return
@@ -180,11 +178,14 @@ func (r *SupabaseCDCIngestionResource) Create(ctx context.Context, req resource.
 	state.ClusterARN = clusterARN
 
 	if cfg.RunInitializationTask {
-		initTaskDefinitionARN, err := registerTaskDefinition(ctx, ecsClient, cfg, names, secretARNs, executionRoleARN, cfg.InitCommand)
+		initTaskDefinitionARN, err := registerTaskDefinition(ctx, ecsClient, cfg, names, refs, executionRoleARN, cfg.InitCommand)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to register initialization ECS task definition", err.Error())
 			return
 		}
+		// Track in state so the rollback path can deregister it if the init
+		// run below fails. Cleared after deregister succeeds.
+		state.InitTaskDefinitionARN = initTaskDefinitionARN
 		if err := runInitializationTask(ctx, ecsClient, cfg, clusterARN, initTaskDefinitionARN); err != nil {
 			resp.Diagnostics.AddError("Failed to run initialization ECS task", err.Error())
 			return
@@ -192,9 +193,10 @@ func (r *SupabaseCDCIngestionResource) Create(ctx context.Context, req resource.
 		if err := deregisterTaskDefinition(ctx, ecsClient, initTaskDefinitionARN); err != nil {
 			resp.Diagnostics.AddWarning("Failed to deregister initialization task definition", err.Error())
 		}
+		state.InitTaskDefinitionARN = ""
 	}
 
-	taskDefinitionARN, err := registerTaskDefinition(ctx, ecsClient, cfg, names, secretARNs, executionRoleARN, cfg.WorkerCommand)
+	taskDefinitionARN, err := registerTaskDefinition(ctx, ecsClient, cfg, names, refs, executionRoleARN, cfg.WorkerCommand)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to register ECS task definition", err.Error())
 		return
@@ -291,35 +293,18 @@ func (r *SupabaseCDCIngestionResource) Update(ctx context.Context, req resource.
 	secretsClient := secretsmanager.NewFromConfig(awsCfg)
 	names := namesFor(state.ResourceName)
 
-	if err := util.PutSecretValue(ctx, secretsClient, state.RawtreeSecretARN, cfg.APIKey); err != nil {
-		resp.Diagnostics.AddError("Failed to update Rawtree API key secret", err.Error())
+	// inline ↔ external switches for database_url / tls_root_cert_pem are
+	// gated by RequiresReplace in the schema, so by the time Update runs the
+	// "managed inline" decision is stable. Just regenerate the JSON payload
+	// from cfg and overwrite the single managed secret in one call.
+	configJSON, err := buildConfigSecretJSON(cfg)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to build managed config secret payload", err.Error())
 		return
 	}
-	if state.ManagedDatabaseURLSecret {
-		if cfg.DatabaseURL == "" {
-			resp.Diagnostics.AddError("Cannot Switch Managed Database URL Secret to External ARN",
-				"Changing from database_url to database_url_secret_arn requires replacing the resource.")
-			return
-		}
-		if err := util.PutSecretValue(ctx, secretsClient, state.DatabaseURLSecretARN, cfg.DatabaseURL); err != nil {
-			resp.Diagnostics.AddError("Failed to update database URL secret", err.Error())
-			return
-		}
-	} else {
-		state.DatabaseURLSecretARN = cfg.DatabaseURLSecretARN
-	}
-	if state.ManagedTLSRootCertSecret {
-		if cfg.TLSRootCertPEM == "" {
-			resp.Diagnostics.AddError("Cannot Switch Managed TLS Certificate Secret to External ARN",
-				"Changing from tls_root_cert_pem to tls_root_cert_secret_arn requires replacing the resource.")
-			return
-		}
-		if err := util.PutSecretValue(ctx, secretsClient, state.TLSRootCertSecretARN, cfg.TLSRootCertPEM); err != nil {
-			resp.Diagnostics.AddError("Failed to update TLS root certificate secret", err.Error())
-			return
-		}
-	} else {
-		state.TLSRootCertSecretARN = cfg.TLSRootCertSecretARN
+	if err := util.PutSecretValue(ctx, secretsClient, state.ConfigSecretARN, configJSON); err != nil {
+		resp.Diagnostics.AddError("Failed to update managed config secret", err.Error())
+		return
 	}
 
 	if err := util.PutLogRetention(ctx, logsClient, state.LogGroupName, cfg.LogRetentionDays); err != nil {
@@ -327,13 +312,9 @@ func (r *SupabaseCDCIngestionResource) Update(ctx context.Context, req resource.
 		return
 	}
 
-	secretARNs := secretARNs{
-		RawtreeAPIKeyARN: state.RawtreeSecretARN,
-		DatabaseURLARN:   state.DatabaseURLSecretARN,
-		TLSRootCertARN:   state.TLSRootCertSecretARN,
-	}
+	refs := buildECSSecretRefs(cfg, state.ConfigSecretARN)
 
-	taskDefinitionARN, err := registerTaskDefinition(ctx, ecsClient, cfg, names, secretARNs, state.ExecutionRoleARN, cfg.WorkerCommand)
+	taskDefinitionARN, err := registerTaskDefinition(ctx, ecsClient, cfg, names, refs, state.ExecutionRoleARN, cfg.WorkerCommand)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to register ECS task definition", err.Error())
 		return
@@ -382,33 +363,64 @@ func (r *SupabaseCDCIngestionResource) Delete(ctx context.Context, req resource.
 	logsClient := cloudwatchlogs.NewFromConfig(awsCfg)
 	secretsClient := secretsmanager.NewFromConfig(awsCfg)
 
+	// preserveLogGroup=false: a successful destroy should leave nothing behind.
+	destroyAWSResources(ctx, state, ecsClient, iamClient, logsClient, secretsClient, false, &resp.Diagnostics)
+}
+
+// destroyAWSResources tears down every AWS resource referenced by state. Safe
+// to call with a partial awsResourceState — each helper short-circuits on
+// empty ARNs/names, so it's both the Delete path and the rollback path used
+// when Create fails halfway through. Errors surface as warnings and don't
+// abort the remaining steps: we want to remove as much as possible even when
+// one helper fails.
+//
+// preserveLogGroup=true is passed by the rollback-on-Create-failure path so
+// the worker's CloudWatch logs survive for debugging. Delete passes false so
+// a clean teardown removes everything. The trade-off: failed-create runs
+// leave behind a (small, empty) orphan log group — preferable to losing the
+// only diagnostic for "init task did not finish".
+func destroyAWSResources(
+	ctx context.Context,
+	state awsResourceState,
+	ecsClient *ecs.Client,
+	iamClient *iam.Client,
+	logsClient *cloudwatchlogs.Client,
+	secretsClient *secretsmanager.Client,
+	preserveLogGroup bool,
+	diags *diag.Diagnostics,
+) {
 	if err := deleteService(ctx, ecsClient, state.ClusterARN, state.ServiceName); err != nil {
-		resp.Diagnostics.AddWarning("Failed to delete ECS service", err.Error())
+		diags.AddWarning("Failed to delete ECS service", err.Error())
 	}
 	if err := deregisterTaskDefinition(ctx, ecsClient, state.TaskDefinitionARN); err != nil {
-		resp.Diagnostics.AddWarning("Failed to deregister ECS task definition", err.Error())
+		diags.AddWarning("Failed to deregister ECS task definition", err.Error())
+	}
+	if state.InitTaskDefinitionARN != "" {
+		if err := deregisterTaskDefinition(ctx, ecsClient, state.InitTaskDefinitionARN); err != nil {
+			diags.AddWarning("Failed to deregister initialization ECS task definition", err.Error())
+		}
 	}
 	if err := deleteCluster(ctx, ecsClient, state.ClusterARN); err != nil {
-		resp.Diagnostics.AddWarning("Failed to delete ECS cluster", err.Error())
+		diags.AddWarning("Failed to delete ECS cluster", err.Error())
 	}
-	if err := util.DeleteRole(ctx, iamClient, state.ExecutionRoleName, state.ExecutionPolicyARN, ecsTaskExecutionManagedPolicyARN); err != nil {
-		resp.Diagnostics.AddWarning("Failed to delete ECS execution role", err.Error())
-	}
-	if err := util.DeleteLogGroup(ctx, logsClient, state.LogGroupName); err != nil {
-		resp.Diagnostics.AddWarning("Failed to delete CloudWatch log group", err.Error())
-	}
-	if err := util.DeleteSecret(ctx, secretsClient, state.RawtreeSecretARN); err != nil {
-		resp.Diagnostics.AddWarning("Failed to delete Rawtree API key secret", err.Error())
-	}
-	if state.ManagedDatabaseURLSecret {
-		if err := util.DeleteSecret(ctx, secretsClient, state.DatabaseURLSecretARN); err != nil {
-			resp.Diagnostics.AddWarning("Failed to delete database URL secret", err.Error())
+	if state.ExecutionRoleName != "" {
+		if err := util.DeleteRole(ctx, iamClient, state.ExecutionRoleName, state.ExecutionPolicyARN, ecsTaskExecutionManagedPolicyARN); err != nil {
+			diags.AddWarning("Failed to delete ECS execution role", err.Error())
 		}
 	}
-	if state.ManagedTLSRootCertSecret {
-		if err := util.DeleteSecret(ctx, secretsClient, state.TLSRootCertSecretARN); err != nil {
-			resp.Diagnostics.AddWarning("Failed to delete TLS root certificate secret", err.Error())
+	if preserveLogGroup {
+		if state.LogGroupName != "" {
+			diags.AddWarning(
+				"Preserving CloudWatch log group for debugging",
+				fmt.Sprintf("Resource creation failed; log group %s was left in place so you can inspect the worker's stdout/stderr. Delete it manually with `aws logs delete-log-group --log-group-name %s` after you're done investigating.",
+					state.LogGroupName, state.LogGroupName),
+			)
 		}
+	} else if err := util.DeleteLogGroup(ctx, logsClient, state.LogGroupName); err != nil {
+		diags.AddWarning("Failed to delete CloudWatch log group", err.Error())
+	}
+	if err := util.DeleteSecret(ctx, secretsClient, state.ConfigSecretARN); err != nil {
+		diags.AddWarning("Failed to delete managed config secret", err.Error())
 	}
 }
 
@@ -432,7 +444,7 @@ func setComputedValues(plan *SupabaseCDCIngestionModel, cfg resolvedConfig, stat
 	plan.TaskDefinitionARN = types.StringValue(state.TaskDefinitionARN)
 	plan.LogGroupName = types.StringValue(state.LogGroupName)
 	plan.ExecutionRoleARN = types.StringValue(state.ExecutionRoleARN)
-	plan.RawtreeSecretARN = types.StringValue(state.RawtreeSecretARN)
+	plan.ConfigSecretARN = types.StringValue(state.ConfigSecretARN)
 }
 
 func stringListValue(values []string) types.List {
@@ -470,12 +482,3 @@ func readPrivateState(ctx context.Context, private privateStateReader, diags *di
 	return state, stateJSON, true
 }
 
-func compactStrings(values ...string) []string {
-	var out []string
-	for _, value := range values {
-		if value != "" {
-			out = append(out, value)
-		}
-	}
-	return out
-}

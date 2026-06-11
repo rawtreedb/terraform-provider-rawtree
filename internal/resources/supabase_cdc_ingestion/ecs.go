@@ -39,7 +39,7 @@ func createCluster(ctx context.Context, client *ecs.Client, name string) (string
 	return aws.ToString(out.Cluster.ClusterArn), nil
 }
 
-func registerTaskDefinition(ctx context.Context, client *ecs.Client, cfg resolvedConfig, names ecsNames, secretARNs secretARNs, executionRoleARN string, command []string) (string, error) {
+func registerTaskDefinition(ctx context.Context, client *ecs.Client, cfg resolvedConfig, names ecsNames, refs ecsSecretRefs, executionRoleARN string, command []string) (string, error) {
 	out, err := client.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
 		Family:                  aws.String(names.TaskDefinitionFamily),
 		Cpu:                     int64String(cfg.CPU),
@@ -52,7 +52,7 @@ func registerTaskDefinition(ctx context.Context, client *ecs.Client, cfg resolve
 			CpuArchitecture:       ecstypes.CPUArchitectureX8664,
 		},
 		ContainerDefinitions: []ecstypes.ContainerDefinition{
-			buildContainerDefinition(cfg, names, secretARNs, command),
+			buildContainerDefinition(cfg, names, refs, command),
 		},
 		Tags: []ecstypes.Tag{
 			{Key: aws.String(util.ManagedByTagKey), Value: aws.String(util.ManagedByTagValue)},
@@ -155,6 +155,7 @@ func runInitializationTask(ctx context.Context, client *ecs.Client, cfg resolved
 
 func waitForTaskSuccess(ctx context.Context, client *ecs.Client, clusterARN, taskARN string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
+	var lastTask ecstypes.Task
 	for time.Now().Before(deadline) {
 		out, err := client.DescribeTasks(ctx, &ecs.DescribeTasksInput{
 			Cluster: aws.String(clusterARN),
@@ -167,12 +168,15 @@ func waitForTaskSuccess(ctx context.Context, client *ecs.Client, clusterARN, tas
 			return errors.New("initialization ECS task disappeared")
 		}
 		task := out.Tasks[0]
+		lastTask = task
 		if task.LastStatus != nil && aws.ToString(task.LastStatus) == "STOPPED" {
 			if task.StopCode == ecstypes.TaskStopCodeEssentialContainerExited {
 				allExitedZero := len(task.Containers) > 0
+				exitCodesAvailable := true
 				for _, container := range task.Containers {
 					if container.ExitCode == nil {
 						allExitedZero = false
+						exitCodesAvailable = false
 					} else if aws.ToInt32(container.ExitCode) != 0 {
 						return fmt.Errorf("initialization ECS task exited with code %d: %s",
 							aws.ToInt32(container.ExitCode), aws.ToString(task.StoppedReason))
@@ -181,12 +185,62 @@ func waitForTaskSuccess(ctx context.Context, client *ecs.Client, clusterARN, tas
 				if allExitedZero {
 					return nil
 				}
+				if !exitCodesAvailable {
+					// Exit codes not yet populated; poll again.
+					time.Sleep(10 * time.Second)
+					continue
+				}
 			}
 			return fmt.Errorf("initialization ECS task stopped: %s", aws.ToString(task.StoppedReason))
 		}
 		time.Sleep(10 * time.Second)
 	}
-	return fmt.Errorf("initialization ECS task did not finish within %s", timeout)
+
+	// Timed out. Best-effort: stop the task so it doesn't keep blocking the
+	// cluster delete on cleanup, then report the most recent task state so the
+	// caller has something to act on (PROVISIONING vs PENDING vs RUNNING means
+	// very different root causes).
+	_, _ = client.StopTask(ctx, &ecs.StopTaskInput{
+		Cluster: aws.String(clusterARN),
+		Task:    aws.String(taskARN),
+		Reason:  aws.String("terraform-provider-rawtree: initialization task exceeded timeout"),
+	})
+	return fmt.Errorf("initialization ECS task did not finish within %s: %s",
+		timeout, formatTaskState(lastTask))
+}
+
+// formatTaskState renders the task's most recent observable state for an
+// error message: lastStatus, desiredStatus, stop code/reason, and each
+// container's lastStatus + reason. Helps distinguish "stuck in PROVISIONING"
+// (ENI / Fargate capacity issue) from "RUNNING but slow" (container is
+// actually executing and just hasn't finished) from "STOPPED with
+// CannotPullContainerError" (image-pull failure).
+func formatTaskState(task ecstypes.Task) string {
+	if task.TaskArn == nil {
+		return "no task state observed"
+	}
+	parts := []string{
+		fmt.Sprintf("lastStatus=%s", aws.ToString(task.LastStatus)),
+		fmt.Sprintf("desiredStatus=%s", aws.ToString(task.DesiredStatus)),
+	}
+	if task.StopCode != "" {
+		parts = append(parts, fmt.Sprintf("stopCode=%s", task.StopCode))
+	}
+	if r := aws.ToString(task.StoppedReason); r != "" {
+		parts = append(parts, fmt.Sprintf("stoppedReason=%q", r))
+	}
+	for _, c := range task.Containers {
+		cparts := []string{fmt.Sprintf("name=%s", aws.ToString(c.Name)),
+			fmt.Sprintf("lastStatus=%s", aws.ToString(c.LastStatus))}
+		if c.ExitCode != nil {
+			cparts = append(cparts, fmt.Sprintf("exitCode=%d", aws.ToInt32(c.ExitCode)))
+		}
+		if r := aws.ToString(c.Reason); r != "" {
+			cparts = append(cparts, fmt.Sprintf("reason=%q", r))
+		}
+		parts = append(parts, fmt.Sprintf("container{%s}", strings.Join(cparts, " ")))
+	}
+	return strings.Join(parts, " ")
 }
 
 func serviceExists(ctx context.Context, client *ecs.Client, clusterARN, serviceName string) (bool, error) {
