@@ -175,7 +175,7 @@ func testAccCheckWafIngestionExists(resourceName string) resource.TestCheckFunc 
 				DeliveryStreamName: &firehoseName,
 			})
 			if err != nil {
-				return fmt.Errorf("Firehose %s not found: %w", firehoseName, err)
+				return fmt.Errorf("firehose %s not found: %w", firehoseName, err)
 			}
 		}
 
@@ -187,7 +187,7 @@ func testAccCheckWafIngestionExists(resourceName string) resource.TestCheckFunc 
 				Bucket: &bucketName,
 			})
 			if err != nil {
-				return fmt.Errorf("S3 backup bucket %s not found: %w", bucketName, err)
+				return fmt.Errorf("s3 backup bucket %s not found: %w", bucketName, err)
 			}
 		}
 
@@ -199,7 +199,7 @@ func testAccCheckWafIngestionExists(resourceName string) resource.TestCheckFunc 
 				ResourceArn: &webACLARN,
 			})
 			if err != nil {
-				return fmt.Errorf("WAF logging config for %s not found: %w", webACLARN, err)
+				return fmt.Errorf("waf logging config for %s not found: %w", webACLARN, err)
 			}
 		}
 
@@ -235,7 +235,7 @@ func testAccCheckFirehoseActive(resourceName string) resource.TestCheckFunc {
 		}
 
 		if out.DeliveryStreamDescription.DeliveryStreamStatus != fhtypes.DeliveryStreamStatusActive {
-			return fmt.Errorf("Firehose %s is not ACTIVE, status: %s",
+			return fmt.Errorf("firehose %s is not ACTIVE, status: %s",
 				firehoseName, out.DeliveryStreamDescription.DeliveryStreamStatus)
 		}
 
@@ -264,7 +264,7 @@ func testAccCheckWafIngestionDestroy(s *terraform.State) error {
 				DeliveryStreamName: &firehoseName,
 			})
 			if err == nil {
-				return fmt.Errorf("Firehose %s still exists after destroy", firehoseName)
+				return fmt.Errorf("firehose %s still exists after destroy", firehoseName)
 			}
 		}
 
@@ -276,7 +276,7 @@ func testAccCheckWafIngestionDestroy(s *terraform.State) error {
 				ResourceArn: &webACLARN,
 			})
 			if err == nil {
-				return fmt.Errorf("WAF logging config for %s still exists after destroy", webACLARN)
+				return fmt.Errorf("waf logging config for %s still exists after destroy", webACLARN)
 			}
 		}
 
@@ -287,7 +287,7 @@ func testAccCheckWafIngestionDestroy(s *terraform.State) error {
 			RoleName: &roleName,
 		})
 		if err == nil {
-			return fmt.Errorf("IAM role %s still exists after destroy", roleName)
+			return fmt.Errorf("iam role %s still exists after destroy", roleName)
 		}
 
 		// Check S3 backup bucket is gone.
@@ -298,7 +298,7 @@ func testAccCheckWafIngestionDestroy(s *terraform.State) error {
 				Bucket: &bucketName,
 			})
 			if err == nil {
-				return fmt.Errorf("S3 backup bucket %s still exists after destroy", bucketName)
+				return fmt.Errorf("s3 backup bucket %s still exists after destroy", bucketName)
 			}
 		}
 	}
@@ -415,7 +415,9 @@ func generateCloudFrontTraffic(domain string, numRequests int) error {
 		if err != nil {
 			return fmt.Errorf("request %d failed: %w", i, err)
 		}
-		_ = resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			return fmt.Errorf("closing response body for request %d: %w", i, err)
+		}
 
 		time.Sleep(500 * time.Millisecond)
 	}

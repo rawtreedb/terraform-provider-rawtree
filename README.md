@@ -7,6 +7,7 @@ The Rawtree Terraform provider enables automated data ingestion from AWS sources
 | Resource | Description | Docs |
 |----------|-------------|------|
 | [`rawtree_s3_ingestion`](docs/resources/s3_ingestion.md) | Batch + streaming ingestion from S3 via Glue, Lambda, and EventBridge | [Full docs](docs/resources/s3_ingestion.md) |
+| [`rawtree_supabase_cdc_ingestion`](docs/resources/supabase_cdc_ingestion.md) | Supabase Postgres CDC ingestion via ECS Fargate | [Full docs](docs/resources/supabase_cdc_ingestion.md) |
 | [`rawtree_waf_ingestion`](docs/resources/waf_ingestion.md) | Real-time AWS WAF log streaming via Kinesis Data Firehose | [Full docs](docs/resources/waf_ingestion.md) |
 | [`rawtree_cloudfront_ingestion`](docs/resources/cloudfront_ingestion.md) | Real-time CloudFront access log streaming via Kinesis and Firehose | [Full docs](docs/resources/cloudfront_ingestion.md) |
 
@@ -32,6 +33,13 @@ The Rawtree Terraform provider enables automated data ingestion from AWS sources
 - **Configurable fields**: Choose which CloudFront log fields to include (20 recommended fields by default)
 - **Sampling**: Control the percentage of requests that generate log records (1-100%)
 - **S3 backup**: Failed deliveries are automatically backed up with a 30-day lifecycle policy
+
+### Supabase CDC Ingestion (`rawtree_supabase_cdc_ingestion`)
+
+- **Long-running CDC**: Run the Rawtree Supabase ETL worker as a single ECS Fargate service
+- **Managed runtime**: Creates ECS, IAM, CloudWatch Logs, and Secrets Manager resources
+- **Secret-aware**: Supports existing Secrets Manager ARNs for the Supabase database URL and CA certificate
+- **Configurable sizing**: Tune Fargate CPU and memory with validated combinations
 
 ## Requirements
 
@@ -104,8 +112,28 @@ resource "rawtree_cloudfront_ingestion" "logs" {
 }
 ```
 
+### Supabase CDC Ingestion
+
+```hcl
+resource "rawtree_supabase_cdc_ingestion" "orders" {
+  name        = "orders"
+  region      = "us-east-1"
+  publication = "rawtree_publication"
+
+  database_url_secret_arn = aws_secretsmanager_secret.supabase_database_url.arn
+  tls_root_cert_secret_arn = aws_secretsmanager_secret.supabase_ca.arn
+
+  subnet_ids         = var.private_subnet_ids
+  security_group_ids = [aws_security_group.rawtree_supabase_cdc.id]
+
+  cpu    = 512
+  memory = 1024
+}
+```
+
 See the full resource documentation for detailed schema, AWS resources created, and configuration options:
 - [`rawtree_s3_ingestion`](docs/resources/s3_ingestion.md)
+- [`rawtree_supabase_cdc_ingestion`](docs/resources/supabase_cdc_ingestion.md)
 - [`rawtree_waf_ingestion`](docs/resources/waf_ingestion.md)
 - [`rawtree_cloudfront_ingestion`](docs/resources/cloudfront_ingestion.md)
 
@@ -113,7 +141,7 @@ See the full resource documentation for detailed schema, AWS resources created, 
 
 The AWS credentials used to run Terraform need different permissions depending on which resources you use.
 
-### Common (both resources)
+### Common
 
 ```json
 {
@@ -193,6 +221,27 @@ Kinesis, Firehose, CloudFront, and S3 permissions. See [`docs/resources/cloudfro
     "s3:CreateBucket", "s3:DeleteBucket", "s3:HeadBucket",
     "s3:PutBucketLifecycleConfiguration", "s3:PutBucketTagging",
     "s3:ListBucket", "s3:DeleteObject", "s3:ListBucketMultipartUploads"
+  ],
+  "Resource": "*"
+}
+```
+
+### For `rawtree_supabase_cdc_ingestion`
+
+ECS, CloudWatch Logs, Secrets Manager, and IAM permissions. See [`docs/resources/supabase_cdc_ingestion.md`](docs/resources/supabase_cdc_ingestion.md) for the full list of AWS resources created.
+
+```json
+{
+  "Sid": "SupabaseCDCIngestion",
+  "Effect": "Allow",
+  "Action": [
+    "ecs:CreateCluster", "ecs:DeleteCluster",
+    "ecs:RegisterTaskDefinition", "ecs:DeregisterTaskDefinition",
+    "ecs:CreateService", "ecs:UpdateService", "ecs:DeleteService",
+    "ecs:DescribeServices", "ecs:RunTask", "ecs:DescribeTasks", "ecs:TagResource",
+    "logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:PutRetentionPolicy", "logs:TagResource",
+    "secretsmanager:CreateSecret", "secretsmanager:PutSecretValue",
+    "secretsmanager:DeleteSecret", "secretsmanager:GetSecretValue", "secretsmanager:TagResource"
   ],
   "Resource": "*"
 }

@@ -41,6 +41,9 @@ func TestProviderHasResources(t *testing.T) {
 	if _, ok := resp.ResourceSchemas["rawtree_s3_ingestion"]; !ok {
 		t.Error("expected rawtree_s3_ingestion resource to be registered")
 	}
+	if _, ok := resp.ResourceSchemas["rawtree_supabase_cdc_ingestion"]; !ok {
+		t.Error("expected rawtree_supabase_cdc_ingestion resource to be registered")
+	}
 	if _, ok := resp.ResourceSchemas["rawtree_waf_ingestion"]; !ok {
 		t.Error("expected rawtree_waf_ingestion resource to be registered")
 	}
@@ -159,8 +162,12 @@ func TestLoadCLIConfig(t *testing.T) {
 	t.Run("invalid json returns empty", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		configDir := filepath.Join(tmpDir, ".config", "rtree")
-		_ = os.MkdirAll(configDir, 0755)
-		_ = os.WriteFile(filepath.Join(configDir, "config.json"), []byte("not json"), 0600)
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("failed to create config dir: %s", err)
+		}
+		if err := os.WriteFile(filepath.Join(configDir, "config.json"), []byte("not json"), 0600); err != nil {
+			t.Fatalf("failed to write config file: %s", err)
+		}
 
 		t.Setenv("HOME", tmpDir)
 

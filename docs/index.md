@@ -2,12 +2,12 @@
 page_title: "Rawtree Provider"
 subcategory: ""
 description: |-
-  The Rawtree provider enables automated data ingestion from AWS S3 into Rawtree.
+  The Rawtree provider enables automated data ingestion from AWS sources into Rawtree.
 ---
 
 # Rawtree Provider
 
-The Rawtree provider enables automated data ingestion from AWS S3 into [Rawtree](https://rawtree.dev), a schemaless analytical database.
+The Rawtree provider enables automated data ingestion from AWS sources into [Rawtree](https://rawtree.dev), a schemaless analytical database.
 
 ## Authentication
 

@@ -50,6 +50,35 @@ TF_ACC=1 go test -v -timeout 45m ./internal/resources/waf_ingestion/
 
 # Run CloudFront ingestion tests (all: unit + infra provisioning + E2E data validation)
 TF_ACC=1 go test -v -timeout 60m ./internal/resources/cloudfront_ingestion/
+
+# Run Supabase CDC ingestion lifecycle tests (no E2E data validation)
+#   Required (in addition to RAWTREE_API_KEY/ORG/PROJECT and AWS creds):
+#     RAWTREE_TEST_SUPABASE_DATABASE_URL  reachable Postgres connection string
+#     RAWTREE_TEST_SUPABASE_SUBNETS       comma-separated subnet IDs in us-east-1
+#   Optional:
+#     RAWTREE_TEST_SUPABASE_SECURITY_GROUPS  comma-separated SG IDs
+#
+#   Account requirement: the ECS service-linked role AWSServiceRoleForECS must
+#   exist (it's an account-wide singleton required for ECS Fargate). The
+#   pre-check creates it idempotently with iam:CreateServiceLinkedRole on
+#   ecs.amazonaws.com — make sure your test credentials are allowed that.
+#
+# These tests run with run_initialization_task=false and only validate the
+# AWS resource lifecycle (cluster/service/task def/log group/role/secrets) —
+# the worker container is not required to actually reach Postgres.
+TF_ACC=1 go test -v -timeout 30m ./internal/resources/supabase_cdc_ingestion/
+
+# Run the Supabase CDC end-to-end data test
+#
+#   This test exercises the full pipeline against the canonical Superstore
+#   Sales dataset: it provisions its own dual-stack VPC + IPv6 subnet + IGW,
+#   creates the rawtree_supabase_cdc_ingestion resource, inserts rows into
+#   the source table, and polls Rawtree until they arrive. The schema is
+#   hard-coded — full setup walkthrough (create Supabase project, import the
+#   CSV, set env vars) is in test/supabase/README.md.
+TF_ACC=1 go test -v -timeout 30m \
+  -run TestAccSupabaseCDCIngestion_endToEndData \
+  ./internal/resources/supabase_cdc_ingestion/
 ```
 
 ## 3. Firehose Transform Stub
