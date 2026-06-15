@@ -32,15 +32,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - run: |
-          go vet ./...
-          UNFORMATTED=$(gofmt -l .)
-          if [ -n "$UNFORMATTED" ]; then
-            echo "::error::The following files are not gofmt-formatted:"
-            echo "$UNFORMATTED"
-            gofmt -d .
-            exit 1
-          fi
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
 
   test:
     name: Unit Tests

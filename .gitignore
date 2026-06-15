@@ -1,3 +1,4 @@
+# Binaries
 *.dll
 *.exe
 *.exe~
@@ -5,15 +6,38 @@
 *.so
 *.test
 *.out
+terraform-provider-rawtree
+
+# Terraform
 *.tfstate
 *.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
 .terraform/
 .terraform.lock.hcl
 terraform.d/
+
+# Build
 dist/
 vendor/
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+
+# Local tools
+.pip/
