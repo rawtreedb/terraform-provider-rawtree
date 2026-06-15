@@ -147,6 +147,8 @@ resource "rawtree_supabase_cdc_ingestion" "this" {
 
   cpu    = 512
   memory = 1024
+
+  depends_on = [aws_route_table_association.this]
 }
 
 # ---------------------------------------------------------------------------
