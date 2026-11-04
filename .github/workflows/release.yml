@@ -8,30 +8,8 @@ on:
 permissions:
   contents: write
 
+# The trusted workflow verifies this is a version-tag push before using a runner.
 jobs:
-  goreleaser:
-    name: GoReleaser
-    runs-on: rawtree-ci-platform-amd64-medium-on-demand
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@v6
-        id: import_gpg
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          version: latest
-          args: release --clean --parallelism 2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+  release:
+    uses: rawtreedb/terraform-provider-rawtree/.github/workflows/runner-release.yml@dad31d599bd42c35fd774a0ceca858e448b2b93a
+    secrets: inherit

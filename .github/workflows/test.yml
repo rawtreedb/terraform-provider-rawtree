@@ -9,41 +9,8 @@ on:
 permissions:
   contents: read
 
+# Pin the trusted runner workflow so fork PRs cannot edit its hosted-runner guard.
+# Its SHA must also be allowed by the rawtree-ci-provider runner group.
 jobs:
-  build:
-    name: Build
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rawtree-ci-platform-amd64-small-spot' }}
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-      - run: go build -v ./...
-
-  lint:
-    name: Lint
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rawtree-ci-platform-amd64-small-spot' }}
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-      - uses: golangci/golangci-lint-action@v7
-        with:
-          version: v2.9
-
-  test:
-    name: Unit Tests
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rawtree-ci-platform-amd64-small-spot' }}
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-      - run: go test -v -cover -timeout=120s ./...
+  checks:
+    uses: rawtreedb/terraform-provider-rawtree/.github/workflows/runner-checks.yml@dad31d599bd42c35fd774a0ceca858e448b2b93a
