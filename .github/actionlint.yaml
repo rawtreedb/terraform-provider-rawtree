@@ -17,3 +17,5 @@ self-hosted-runner:
     - arc-runner-set-platform-arm64
     - arc-runner-set-platform-amd64
     - rawtree-ci-arc-runner-set-arm-small
+    - rawtree-ci-provider-amd64-small-spot
+    - rawtree-ci-provider-amd64-medium-on-demand

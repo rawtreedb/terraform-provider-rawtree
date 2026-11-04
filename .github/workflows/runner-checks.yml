@@ -1,0 +1,49 @@
+name: Provider runner checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.repository == 'rawtreedb/terraform-provider-rawtree'
+    name: Build
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rawtree-ci-provider-amd64-small-spot' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go build -v ./...
+
+  lint:
+    if: github.repository == 'rawtreedb/terraform-provider-rawtree'
+    name: Lint
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rawtree-ci-provider-amd64-small-spot' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.9
+
+  test:
+    if: github.repository == 'rawtreedb/terraform-provider-rawtree'
+    name: Unit Tests
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rawtree-ci-provider-amd64-small-spot' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -v -cover -timeout=120s ./...
