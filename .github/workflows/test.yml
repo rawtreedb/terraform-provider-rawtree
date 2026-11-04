@@ -12,7 +12,7 @@ permissions:
 jobs:
   build:
     name: Build
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rawtree-ci-platform-amd64-medium-spot' }}
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rawtree-ci-platform-amd64-small-spot' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
@@ -24,7 +24,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rawtree-ci-platform-amd64-medium-spot' }}
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rawtree-ci-platform-amd64-small-spot' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
@@ -38,7 +38,7 @@ jobs:
 
   test:
     name: Unit Tests
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rawtree-ci-platform-amd64-medium-spot' }}
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'rawtree-ci-platform-amd64-small-spot' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
