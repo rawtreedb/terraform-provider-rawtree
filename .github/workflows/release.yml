@@ -11,7 +11,7 @@ permissions:
 jobs:
   goreleaser:
     name: GoReleaser
-    runs-on: ubuntu-latest
+    runs-on: rawtree-ci-platform-amd64-medium-on-demand
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6

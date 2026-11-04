@@ -1,0 +1,19 @@
+self-hosted-runner:
+  labels:
+    - rawtree-ci-platform-amd64-small-spot
+    - rawtree-ci-platform-amd64-small-on-demand
+    - rawtree-ci-platform-amd64-medium-spot
+    - rawtree-ci-platform-amd64-medium-on-demand
+    - rawtree-ci-platform-amd64-large-spot
+    - rawtree-ci-platform-amd64-large-on-demand
+    - rawtree-ci-platform-arm64-small-spot
+    - rawtree-ci-platform-arm64-small-on-demand
+    - rawtree-ci-platform-arm64-medium-spot
+    - rawtree-ci-platform-arm64-medium-on-demand
+    - rawtree-ci-platform-arm64-large-spot
+    - rawtree-ci-platform-arm64-large-on-demand
+    - arc-runner-set-arm64
+    - arc-runner-set-amd64
+    - arc-runner-set-platform-arm64
+    - arc-runner-set-platform-amd64
+    - rawtree-ci-arc-runner-set-arm-small
