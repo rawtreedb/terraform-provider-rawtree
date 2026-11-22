@@ -3,8 +3,8 @@
 # Generate traffic against a CloudFront distribution protected by AWS WAF.
 #
 # Every request generates BOTH:
-#   - A WAF log record (via WAF -> Firehose -> Rawtree)
-#   - A CloudFront real-time log record (via CF -> Kinesis -> Firehose -> Rawtree)
+#   - A WAF log record (via WAF -> Firehose -> Tinybird RawTree)
+#   - A CloudFront real-time log record (via CF -> Kinesis -> Firehose -> Tinybird RawTree)
 #
 # Usage:
 #   ./generate-traffic.sh <cloudfront-domain> [rounds] [--legit]
@@ -29,7 +29,7 @@ done
 BASE="https://${DOMAIN}"
 UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 
-echo "=== Rawtree Ingestion Lab Traffic Generator ==="
+echo "=== Tinybird RawTree Ingestion Lab Traffic Generator ==="
 echo "Target:  ${BASE}"
 echo "Rounds:  ${ROUNDS}"
 echo "Mode:    $( $LEGIT_ONLY && echo "legitimate only" || echo "mixed (legit + attack)" )"
@@ -104,7 +104,7 @@ echo "=== Done: ${ROUNDS} rounds, ~${TOTAL} requests sent ==="
 echo ""
 echo "Next steps:"
 echo "  1. Wait 1-2 minutes for logs to be delivered via Firehose"
-echo "  2. Check your Rawtree tables:"
+echo "  2. Check your Tinybird RawTree tables:"
 echo "     - WAF logs table (default: waf_logs)"
 echo "     - CloudFront real-time logs table (default: cloudfront_logs)"
 echo ""

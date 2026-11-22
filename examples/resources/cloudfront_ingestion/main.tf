@@ -11,7 +11,7 @@ resource "rawtree_cloudfront_ingestion" "full" {
   distribution_id = "E1234567890ABC"
   region          = "us-east-1"
   organization    = "my-org"
-  project         = "my-project"
+  database        = "my_database"
 
   sampling_rate      = 50
   buffering_size     = 10

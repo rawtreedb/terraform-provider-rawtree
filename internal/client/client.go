@@ -10,19 +10,20 @@ type RawtreeClient struct {
 	APIKey       string
 	APIURL       string
 	Organization string
-	Project      string
+	Database     string
 	HTTPClient   *http.Client
 }
 
 // New creates a new RawtreeClient.
-func New(apiKey, apiURL, org, project string) *RawtreeClient {
+func New(apiKey, apiURL, org, database string) *RawtreeClient {
 	return &RawtreeClient{
 		APIKey:       apiKey,
 		APIURL:       apiURL,
 		Organization: org,
-		Project:      project,
+		Database:     database,
 		HTTPClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:       30 * time.Second,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}
 }

@@ -1,0 +1,46 @@
+{
+  "version": 4,
+  "terraform_version": "1.14.0",
+  "serial": 1,
+  "lineage": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+  "outputs": {},
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "rawtree_waf_ingestion",
+      "name": "logs",
+      "provider": "provider[\"registry.terraform.io/rawtreedb/rawtree\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "test-org-test-project-waf-logs-d208c063",
+            "api_key_hash": "2b9cc4a9db471dbe900f09fbe469af30efdd8a740f938e325120903fb274339d",
+            "api_url": "https://example.invalid",
+            "endpoint_url": "https://example.invalid/v1/test-org/test-project/tables/waf_logs?transform=firehose",
+            "organization": "test-org",
+            "project": "test-project",
+            "table": "waf_logs",
+            "web_acl_arn": "arn:aws:wafv2:us-east-1:000000000000:regional/webacl/test/00000000-0000-0000-0000-000000000000",
+            "region": "us-east-1",
+            "buffering_size": 5,
+            "buffering_interval": 300,
+            "s3_backup_mode": "FailedDataOnly",
+            "firehose_name": "aws-waf-logs-rawtree-test-org-test-project-waf-logs-d208c063",
+            "firehose_arn": "arn:aws:firehose:us-east-1:000000000000:deliverystream/aws-waf-logs-rawtree-test-org-test-project-waf-logs-d208c063",
+            "backup_bucket_name": "rawtree-waf-backup-test-org-test-project-waf-logs-d208c063",
+            "waf_logging_configuration_id": "arn:aws:wafv2:us-east-1:000000000000:regional/webacl/test/00000000-0000-0000-0000-000000000000"
+          },
+          "sensitive_attributes": [
+            [
+              {
+                "type": "get_attr",
+                "value": "api_key_hash"
+              }
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

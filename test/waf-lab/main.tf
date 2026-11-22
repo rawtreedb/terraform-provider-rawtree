@@ -55,7 +55,7 @@ resource "aws_s3_object" "index" {
   content      = <<-HTML
     <!DOCTYPE html>
     <html><head><title>WAF Lab</title></head>
-    <body><h1>Rawtree WAF Lab</h1><p>This origin serves traffic for WAF log generation.</p></body>
+    <body><h1>Tinybird RawTree WAF Lab</h1><p>This origin serves traffic for WAF log generation.</p></body>
     </html>
   HTML
   content_type = "text/html"

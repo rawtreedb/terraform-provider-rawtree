@@ -27,13 +27,13 @@ variable "name_prefix" {
 variable "waf_table" {
   type        = string
   default     = "waf_logs"
-  description = "Rawtree table name for WAF logs."
+  description = "Tinybird RawTree table name for WAF logs."
 }
 
 variable "cloudfront_table" {
   type        = string
   default     = "cloudfront_logs"
-  description = "Rawtree table name for CloudFront real-time logs."
+  description = "Tinybird RawTree table name for CloudFront real-time logs."
 }
 
 provider "aws" {
@@ -75,8 +75,8 @@ resource "aws_s3_object" "index" {
   key          = "index.html"
   content      = <<-HTML
     <!DOCTYPE html>
-    <html><head><title>Rawtree Lab</title></head>
-    <body><h1>Rawtree Ingestion Lab</h1><p>This origin serves traffic for WAF + CloudFront log generation.</p></body>
+    <html><head><title>Tinybird RawTree Lab</title></head>
+    <body><h1>Tinybird RawTree Ingestion Lab</h1><p>This origin serves traffic for WAF + CloudFront log generation.</p></body>
     </html>
   HTML
   content_type = "text/html"
@@ -535,7 +535,7 @@ resource "aws_wafv2_web_acl" "main" {
 }
 
 # ---------------------------------------------------------------------------
-# Rawtree WAF Ingestion (WAF logs -> Firehose -> Rawtree)
+# Tinybird RawTree WAF Ingestion (WAF logs -> Firehose -> Tinybird RawTree)
 # ---------------------------------------------------------------------------
 
 resource "rawtree_waf_ingestion" "main" {
@@ -545,7 +545,7 @@ resource "rawtree_waf_ingestion" "main" {
 }
 
 # ---------------------------------------------------------------------------
-# Rawtree CloudFront Ingestion (CF real-time logs -> Kinesis -> Firehose -> Rawtree)
+# Tinybird RawTree CloudFront Ingestion (CF real-time logs -> Kinesis -> Firehose -> Tinybird RawTree)
 # ---------------------------------------------------------------------------
 
 resource "rawtree_cloudfront_ingestion" "main" {

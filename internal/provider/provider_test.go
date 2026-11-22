@@ -3,13 +3,19 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
+	tfprovider "github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/rawtreedb/terraform-provider-rawtree/internal/client"
 )
 
 func TestProviderSchema(t *testing.T) {
@@ -38,14 +44,10 @@ func TestProviderHasResources(t *testing.T) {
 		t.Fatalf("failed to get provider schema: %s", err)
 	}
 
-	if _, ok := resp.ResourceSchemas["rawtree_s3_ingestion"]; !ok {
-		t.Error("expected rawtree_s3_ingestion resource to be registered")
-	}
-	if _, ok := resp.ResourceSchemas["rawtree_supabase_cdc_ingestion"]; !ok {
-		t.Error("expected rawtree_supabase_cdc_ingestion resource to be registered")
-	}
-	if _, ok := resp.ResourceSchemas["rawtree_waf_ingestion"]; !ok {
-		t.Error("expected rawtree_waf_ingestion resource to be registered")
+	for _, name := range []string{"rawtree_database", "rawtree_workflow", "rawtree_s3_ingestion", "rawtree_waf_ingestion", "rawtree_cloudfront_ingestion", "rawtree_supabase_cdc_ingestion"} {
+		if _, ok := resp.ResourceSchemas[name]; !ok {
+			t.Errorf("expected %s resource to be registered", name)
+		}
 	}
 }
 
@@ -176,4 +178,63 @@ func TestLoadCLIConfig(t *testing.T) {
 			t.Errorf("expected empty token, got %s", result.Token)
 		}
 	})
+}
+
+func TestProviderSeparatesManagementAndIngestionCredentials(t *testing.T) {
+	ctx := context.Background()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Header.Get("Authorization") != "Bearer management-test" {
+			t.Error("native request used the wrong credential")
+		}
+		_, _ = fmt.Fprint(w, `{"databases":[]}`)
+	}))
+	defer server.Close()
+
+	p := New("test")()
+	var schema tfprovider.SchemaResponse
+	p.Schema(ctx, tfprovider.SchemaRequest{}, &schema)
+	for _, ingestion := range []string{"", "ingestion-test"} {
+		state := tfsdk.State{Schema: schema.Schema}
+		diags := state.Set(ctx, RawtreeProviderModel{
+			APIKey: types.StringValue(ingestion), APIURL: types.StringValue(server.URL),
+			ManagementToken: types.StringValue("management-test"),
+			Organization:    types.StringValue(""), Project: types.StringValue(""),
+		})
+		if diags.HasError() {
+			t.Fatal(diags.Errors())
+		}
+		var resp tfprovider.ConfigureResponse
+		p.Configure(ctx, tfprovider.ConfigureRequest{Config: tfsdk.Config{Schema: schema.Schema, Raw: state.Raw}}, &resp)
+		if resp.Diagnostics.HasError() {
+			t.Fatal(resp.Diagnostics.Errors())
+		}
+		clients := resp.ResourceData.(*client.Clients)
+		if clients.Integrations.APIKey != ingestion {
+			t.Fatal("integration inherited the management token")
+		}
+		if _, err := clients.Platform.DatabaseExists(ctx, client.Database{Organization: "org", Cluster: "cluster", Name: "db"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestIngestionDatabasePrecedence(t *testing.T) {
+	cli := cliConfig{Database: "saved", DefaultProject: "old-saved"}
+	for _, tc := range []struct{ db, project, envDB, envProject, want string }{
+		{"explicit", "", "env", "old-env", "explicit"},
+		{"", "old-explicit", "env", "old-env", "old-explicit"},
+		{"", "", "env", "old-env", "env"},
+		{"", "", "", "old-env", "old-env"},
+		{"", "", "", "", "saved"},
+	} {
+		t.Setenv("RAWTREE_DATABASE", tc.envDB)
+		t.Setenv("RAWTREE_PROJECT", tc.envProject)
+		cfg := RawtreeProviderModel{Database: types.StringValue(tc.db), Project: types.StringValue(tc.project)}
+		if got := ingestionDatabase(cfg, cli); got != tc.want {
+			t.Errorf("got %q, want %q", got, tc.want)
+		}
+	}
+	if got := ingestionDatabase(RawtreeProviderModel{}, cliConfig{DefaultProject: "legacy"}); got != "legacy" {
+		t.Errorf("lost legacy saved default: %q", got)
+	}
 }

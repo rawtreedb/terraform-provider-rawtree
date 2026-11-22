@@ -1,17 +1,19 @@
 ---
-page_title: "rawtree_supabase_cdc_ingestion Resource - Rawtree"
-subcategory: ""
+page_title: "rawtree_supabase_cdc_ingestion Resource - Tinybird RawTree"
+subcategory: "Integrations"
 description: |-
-  Manages Supabase Postgres CDC ingestion into Rawtree using ECS Fargate.
+  Manages Supabase Postgres CDC ingestion into Tinybird RawTree using ECS Fargate.
 ---
 
 # rawtree_supabase_cdc_ingestion (Resource)
 
-Manages Supabase Postgres CDC ingestion into Rawtree using a single ECS Fargate service. The worker runs the Rawtree Supabase ETL container, connects to the Supabase direct Postgres endpoint, consumes a logical replication publication, and writes CDC events to Rawtree tables.
+Manages Supabase Postgres CDC ingestion into Tinybird RawTree using a single ECS Fargate service. The worker runs the Tinybird RawTree Supabase ETL container, connects to the Supabase direct Postgres endpoint, consumes a logical replication publication, and writes CDC events to Tinybird RawTree tables.
+
+The stock worker writes to its ingestion key's default database. Issue its key with the destination database selected. Before creating or updating AWS resources, the provider runs `SELECT currentDatabase()` with that key and stops if it cannot verify a match. This check requires a key with query access. Custom worker images receive `RAWTREE_DATABASE` and the legacy `RAWTREE_PROJECT` variable.
 
 ## How It Works
 
-1. **Secrets**: The provider creates a single managed Secrets Manager secret holding the Rawtree API key as JSON. If `database_url` and/or `tls_root_cert_pem` are passed inline they are added to the same JSON document (keys `DATABASE_URL`, `POSTGRES_TLS_ROOT_CERTS`). ECS reads each value via the JSON-key `valueFrom` syntax and injects it into the container as the env var of the same name. External `database_url_secret_arn` / `tls_root_cert_secret_arn` are referenced directly and not copied.
+1. **Secrets**: The provider creates a single managed Secrets Manager secret holding the Tinybird RawTree API key as JSON. If `database_url` and/or `tls_root_cert_pem` are passed inline they are added to the same JSON document (keys `DATABASE_URL`, `POSTGRES_TLS_ROOT_CERTS`). ECS reads each value via the JSON-key `valueFrom` syntax and injects it into the container as the env var of the same name. External `database_url_secret_arn` / `tls_root_cert_secret_arn` are referenced directly and not copied.
 
 The supabase/etl worker reads the CA from the `POSTGRES_TLS_ROOT_CERTS` env var directly (as PEM content), so no on-disk file is needed. Supabase direct Postgres uses a private CA that isn't in Mozilla's root bundle — set `tls_root_cert_pem` (or `tls_root_cert_secret_arn`) for any non-local deployment, otherwise TLS verification will fail with `UnknownIssuer`.
 
@@ -59,7 +61,7 @@ The inline value is sensitive, but it is still stored in Terraform state. Use `d
 - `name` (String) - Stable name for this CDC worker. Changing this forces a new resource.
 - `region` (String) - AWS region where ECS, IAM, CloudWatch Logs, and managed secrets will be created. Changing this forces a new resource.
 - `publication` (String) - Postgres publication consumed by supabase/etl.
-- `subnet_ids` (List of String) - Subnet IDs where the Fargate task should run. These subnets need outbound access to Supabase and Rawtree.
+- `subnet_ids` (List of String) - Subnet IDs where the Fargate task should run. These subnets need outbound access to Supabase and Tinybird RawTree.
 
 Exactly one of the following is required:
 
@@ -81,20 +83,21 @@ Exactly one of the following is required:
 - `initialization_command` (List of String) - Command for the optional one-off initialization task. Default: `["init"]`.
 - `worker_command` (List of String) - Command for the long-running worker container. Default: `["run"]`.
 - `environment` (Map of String) - Additional non-sensitive environment variables passed to both init and worker containers.
-- `organization` (String) - The Rawtree organization. Defaults to the provider-level organization.
-- `project` (String) - The Rawtree project. Defaults to the provider-level project.
+- `organization` (String) - The Tinybird RawTree organization. Defaults to the provider-level organization.
+- `database` (String) selects the destination Tinybird RawTree database. Defaults to the provider database.
+- `project` (String, deprecated) is an alias for `database`.
 
 ### Read-Only
 
 - `id` (String) - The unique identifier for this ingestion resource.
-- `api_url` (String) - The Rawtree API URL from provider config.
-- `api_key_hash` (String, Sensitive) - Hash of the Rawtree API key.
+- `api_url` (String) - The Tinybird RawTree API URL from provider config.
+- `api_key_hash` (String, Sensitive) - Hash of the Tinybird RawTree API key.
 - `cluster_arn` (String) - The ARN of the ECS cluster.
 - `service_arn` (String) - The ARN of the ECS service.
 - `task_definition_arn` (String) - The ARN of the active ECS task definition.
 - `log_group_name` (String) - The CloudWatch Logs group used by the worker.
 - `execution_role_arn` (String) - The IAM execution role used by ECS.
-- `config_secret_arn` (String) - ARN of the managed Secrets Manager secret holding the Rawtree API key — and, when supplied inline, the Supabase database URL and CA certificate — as JSON keys (`RAWTREE_API_KEY`, `DATABASE_URL`, `POSTGRES_TLS_ROOT_CERT_PEM`).
+- `config_secret_arn` (String) - ARN of the managed Secrets Manager secret holding the Tinybird RawTree API key — and, when supplied inline, the Supabase database URL and CA certificate — as JSON keys (`RAWTREE_API_KEY`, `DATABASE_URL`, `POSTGRES_TLS_ROOT_CERT_PEM`).
 
 ## AWS Resources Created
 
@@ -111,7 +114,7 @@ All resources are tagged with `managed-by: terraform-provider-rawtree`.
 
 ## Networking
 
-The selected subnets must have outbound access to the Supabase direct Postgres endpoint and the Rawtree API. Supabase direct Postgres can be IPv6-only, so use subnets and routing that support the endpoint your Supabase project exposes.
+The selected subnets must have outbound access to the Supabase direct Postgres endpoint and the Tinybird RawTree API. Supabase direct Postgres can be IPv6-only, so use subnets and routing that support the endpoint your Supabase project exposes.
 
 ## Import
 

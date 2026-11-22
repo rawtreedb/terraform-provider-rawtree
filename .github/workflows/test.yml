@@ -47,3 +47,9 @@ jobs:
           go-version-file: go.mod
           cache: true
       - run: go test -v -cover -timeout=120s ./...
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.0
+          terraform_wrapper: false
+      - name: Check v0.1.0 integration state
+        run: bash test/upgrade/plan.sh

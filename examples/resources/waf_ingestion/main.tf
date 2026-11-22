@@ -8,11 +8,11 @@ terraform {
 }
 
 provider "rawtree" {
-  # Uses RAWTREE_API_KEY, RAWTREE_ORG, RAWTREE_PROJECT env vars
+  # Uses RAWTREE_API_KEY, RAWTREE_ORG, RAWTREE_DATABASE env vars
   # or rtree CLI config from ~/.config/rtree/config.json
 }
 
-# Stream WAF logs from a CloudFront Web ACL to Rawtree in real-time.
+# Stream WAF logs from a CloudFront Web ACL to Tinybird RawTree in real-time.
 # Creates a Kinesis Data Firehose delivery stream with HTTP endpoint
 # destination and configures WAF logging.
 resource "rawtree_waf_ingestion" "waf_logs" {
@@ -21,13 +21,13 @@ resource "rawtree_waf_ingestion" "waf_logs" {
   region      = "us-east-1"
 }
 
-# With explicit organization/project and custom buffering.
+# With explicit organization/database and custom buffering.
 resource "rawtree_waf_ingestion" "waf_logs_full_backup" {
   table              = "waf_logs_audit"
   web_acl_arn        = "arn:aws:wafv2:us-east-1:123456789012:global/webacl/my-audit-acl/def456"
   region             = "us-east-1"
   organization       = "my-org"
-  project            = "my-project"
+  database           = "my_database"
   buffering_size     = 10
   buffering_interval = 120
   s3_backup_mode     = "AllData"

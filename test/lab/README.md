@@ -1,8 +1,8 @@
-# Rawtree Ingestion Lab
+# Tinybird RawTree Ingestion Lab
 
 Single CloudFront distribution with WAF + real-time logs enabled. Every request
 generates both WAF log records and CloudFront real-time log records, ingested
-into separate Rawtree tables via two independent Firehose pipelines.
+into separate Tinybird RawTree tables via two independent Firehose pipelines.
 
 ## Architecture
 
@@ -19,17 +19,17 @@ into separate Rawtree tables via two independent Firehose pipelines.
   (DirectPut)                     |
        |                          v
        v                       Firehose
-  Rawtree API              (KinesisSource)
+  Tinybird RawTree API      (KinesisSource)
   (waf_logs)                      |
                                   v
-                             Rawtree API
+                         Tinybird RawTree API
                           (cloudfront_logs)
 ```
 
 ## Prerequisites
 
 - AWS credentials configured (`aws configure` or env vars)
-- Rawtree account with an API key
+- Tinybird RawTree account with an API key
 - Provider binary built (see below)
 - `~/.terraformrc` with dev_overrides pointing to the repo root
 
@@ -40,10 +40,10 @@ into separate Rawtree tables via two independent Firehose pipelines.
 cd /path/to/terraform-provider-rawtree
 go build -o . .
 
-# 2. Set Rawtree credentials (provider reads these from env)
+# 2. Set Tinybird RawTree credentials (provider reads these from env)
 export RAWTREE_API_KEY="rw_..."
 export RAWTREE_ORG="your-org"
-export RAWTREE_PROJECT="your-project"
+export RAWTREE_DATABASE="your_database"
 
 # 3. Bootstrap the lab (downloads aws + random providers)
 cd test/lab
@@ -73,8 +73,8 @@ This creates:
 - S3 origin bucket with sample content
 - CloudFront distribution with WAF attached
 - WAFv2 Web ACL with 8 managed + 2 custom rules
-- `rawtree_waf_ingestion` pipeline (WAF -> Firehose -> Rawtree)
-- `rawtree_cloudfront_ingestion` pipeline (CF -> Kinesis -> Firehose -> Rawtree)
+- `rawtree_waf_ingestion` pipeline (WAF -> Firehose -> Tinybird RawTree)
+- `rawtree_cloudfront_ingestion` pipeline (CF -> Kinesis -> Firehose -> Tinybird RawTree)
 
 ## Generate Traffic
 

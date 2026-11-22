@@ -31,7 +31,7 @@ terraform {
 }
 
 provider "rawtree" {
-  # Uses RAWTREE_API_KEY, RAWTREE_URL, RAWTREE_ORG, RAWTREE_PROJECT env vars,
+  # Uses RAWTREE_API_KEY, RAWTREE_URL, RAWTREE_ORG, RAWTREE_DATABASE env vars,
   # or the rtree CLI config at ~/.config/rtree/config.json.
 }
 

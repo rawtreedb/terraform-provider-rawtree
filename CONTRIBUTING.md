@@ -1,4 +1,4 @@
-# Contributing to the Rawtree Terraform Provider
+# Contributing to the Tinybird RawTree Terraform Provider
 
 Thank you for your interest in contributing! This document provides guidelines for contributing to this project.
 
@@ -8,8 +8,8 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 - [Go](https://golang.org/doc/install) >= 1.26
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
-- AWS credentials for running acceptance tests
-- A Rawtree account for running acceptance tests
+- AWS credentials for the ingestion acceptance tests
+- A Tinybird RawTree account or a local Tinybird RawTree stack for acceptance tests. See the [acceptance test setup](test/README.md).
 
 ### Setting Up Your Development Environment
 
@@ -59,22 +59,16 @@ Then run `make install` and use Terraform normally — it will pick up your loca
 
 ```
 internal/
-├── client/                      # Shared Rawtree API client
+├── client/                      # Shared Tinybird RawTree API client
 ├── provider/                    # Provider configuration and setup
 ├── util/                        # Shared AWS helpers (IAM, S3, naming, tags, …)
 └── resources/
-    ├── s3_ingestion/            # S3 batch + streaming ingestion
-    │   ├── resource.go          # CRUD lifecycle
-    │   ├── schema.go            # Resource schema
-    │   ├── models.go            # State models
-    │   ├── iam.go               # IAM role management
-    │   ├── glue.go              # Glue job management
-    │   ├── lambda.go            # Lambda function management
-    │   ├── eventbridge.go       # EventBridge setup
-    │   └── scripts/             # Embedded Python scripts (Glue, Lambda)
-    ├── waf_ingestion/           # WAF logs via Kinesis Firehose
-    ├── cloudfront_ingestion/    # CloudFront real-time logs via Kinesis + Firehose
-    └── supabase_cdc_ingestion/  # Supabase Postgres CDC via ECS Fargate
+    ├── platform/database/       # Tinybird RawTree database lifecycle
+    └── integrations/            # AWS-backed ingestion pipelines
+        ├── s3_ingestion/
+        ├── waf_ingestion/
+        ├── cloudfront_ingestion/
+        └── supabase_cdc_ingestion/
 ```
 
 Each resource follows the same pattern: `resource.go` (CRUD), `schema.go` (schema definition), `models.go` (state types), plus AWS service-specific files.
@@ -89,13 +83,13 @@ Each resource follows the same pattern: `resource.go` (CRUD), `schema.go` (schem
 
 ### Running Acceptance Tests
 
-Acceptance tests create real AWS resources and require credentials + a Rawtree API key:
+Acceptance tests create real AWS resources and require credentials + a Tinybird RawTree API key:
 
 ```sh
 export RAWTREE_API_KEY=rw_...
-export RAWTREE_URL=https://api.us-east-1.aws.rawtree.com
+export RAWTREE_URL=https://api.rawtree.com
 export RAWTREE_ORG=your-org
-export RAWTREE_PROJECT=your-project
+export RAWTREE_DATABASE=your_database
 make testacc
 ```
 

@@ -18,8 +18,8 @@ func TestNew(t *testing.T) {
 	if c.Organization != "myorg" {
 		t.Errorf("expected org myorg, got %s", c.Organization)
 	}
-	if c.Project != "myproject" {
-		t.Errorf("expected project myproject, got %s", c.Project)
+	if c.Database != "myproject" {
+		t.Errorf("expected project myproject, got %s", c.Database)
 	}
 	if c.HTTPClient == nil {
 		t.Error("expected HTTP client to be initialized")

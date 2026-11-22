@@ -1,12 +1,52 @@
 # Acceptance Test Setup
 
-This directory contains everything needed to run acceptance tests for the Rawtree Terraform provider.
+This directory contains everything needed to run acceptance tests for the Tinybird RawTree Terraform provider.
 
-## Prerequisites
+## Tinybird RawTree database
+
+The database test requires Terraform 1.5 or later for import blocks. It creates a uniquely named database and deletes it after checking the plan and both forms of import.
+
+If you have a `rawtree-platform` checkout, run its Compose launcher from a fresh worktree. This gives the test its own Docker volumes. Choose an available port.
+
+```sh
+RAWTREE_LOCAL_DEFAULT_DATABASE_MODE=skip bash scripts/codex/run-local-compose.sh 8082
+```
+
+Set the following variables in the shell where you run the provider tests. The launcher writes the bootstrap values to the platform worktree's `.env.local`.
+
+| Provider test variable | Value for this local stack |
+| --- | --- |
+| `RAWTREE_URL` | `http://localhost:8082` |
+| `RAWTREE_MANAGEMENT_TOKEN` | `RAWTREE_LOCAL_BOOTSTRAP_SESSION_TOKEN` |
+| `RAWTREE_TEST_ORGANIZATION` | `RAWTREE_LOCAL_BOOTSTRAP_ORGANIZATION` |
+| `RAWTREE_TEST_CLUSTER` | `RAWTREE_LOCAL_BOOTSTRAP_CLUSTER` |
+
+Run the test from the provider repository.
+
+```sh
+TF_ACC=1 go test -count=1 -v -run '^TestAccDatabase$' ./internal/resources/platform/database/
+```
+
+To stop the local stack, run `bash scripts/codex/run-local-compose.sh 8082 stop` from the same platform worktree.
+
+## Tinybird RawTree workflow
+
+Use the local stack and the same four variables as the database test. The cluster needs the workflow service enabled. This test creates a manual workflow in `default`, changes its SQL, pauses its schedule, imports it, reorders HTTP and table destinations, and verifies deletion. The test never triggers a delivery.
+
+```sh
+TF_ACC=1 go test -count=1 -v -run '^TestAccWorkflow$' ./internal/resources/platform/workflow/
+```
+
+## Upgrade from v0.1.0
+
+Run `bash test/upgrade/plan.sh` from the provider repository. It builds the current provider and checks that both `database` and the deprecated `project` configuration migrate a synthetic v0.1.0 WAF destination in place, keeping its resource ID.
+The check skips AWS refresh and uses a temporary Terraform configuration.
+
+## Ingestion prerequisites
 
 - AWS credentials configured (`aws configure` or env vars)
-- Rawtree account with an API key
-- Go 1.22+, Terraform 1.0+
+- Tinybird RawTree account with an API key
+- Go 1.26.1+, Terraform 1.0+
 
 ## 1. Create the test infrastructure
 
@@ -28,7 +68,7 @@ s3://rawtree-provider-test-<suffix>/
 
 ## 2. Run acceptance tests
 
-Copy the output from `terraform apply` and add your Rawtree credentials:
+Copy the output from `terraform apply` and add your Tinybird RawTree credentials:
 
 ```sh
 # From terraform output
@@ -37,19 +77,19 @@ export RAWTREE_TEST_WAF_WEB_ACL_ARN="arn:aws:wafv2:..."
 export RAWTREE_TEST_CF_DISTRIBUTION_ID="E23M245BXXXXXX"
 export AWS_REGION="us-east-1"
 
-# Your Rawtree credentials
+# Your Tinybird RawTree credentials
 export RAWTREE_API_KEY="rw_..."
 export RAWTREE_ORG="my-org"
-export RAWTREE_PROJECT="my-project"
+export RAWTREE_DATABASE="my_database"
 
 # Run S3 ingestion tests
-TF_ACC=1 go test -v -timeout 30m ./internal/resources/s3_ingestion/
+TF_ACC=1 go test -v -timeout 30m ./internal/resources/integrations/s3_ingestion/
 
 # Run WAF ingestion tests (all: unit + infra provisioning + E2E data validation)
-TF_ACC=1 go test -v -timeout 45m ./internal/resources/waf_ingestion/
+TF_ACC=1 go test -v -timeout 45m ./internal/resources/integrations/waf_ingestion/
 
 # Run CloudFront ingestion tests (all: unit + infra provisioning + E2E data validation)
-TF_ACC=1 go test -v -timeout 60m ./internal/resources/cloudfront_ingestion/
+TF_ACC=1 go test -v -timeout 60m ./internal/resources/integrations/cloudfront_ingestion/
 
 # Run Supabase CDC ingestion lifecycle tests (no E2E data validation)
 #   Required (in addition to RAWTREE_API_KEY/ORG/PROJECT and AWS creds):
@@ -66,38 +106,38 @@ TF_ACC=1 go test -v -timeout 60m ./internal/resources/cloudfront_ingestion/
 # These tests run with run_initialization_task=false and only validate the
 # AWS resource lifecycle (cluster/service/task def/log group/role/secrets) —
 # the worker container is not required to actually reach Postgres.
-TF_ACC=1 go test -v -timeout 30m ./internal/resources/supabase_cdc_ingestion/
+TF_ACC=1 go test -v -timeout 30m ./internal/resources/integrations/supabase_cdc_ingestion/
 
 # Run the Supabase CDC end-to-end data test
 #
 #   This test exercises the full pipeline against the canonical Superstore
 #   Sales dataset: it provisions its own dual-stack VPC + IPv6 subnet + IGW,
 #   creates the rawtree_supabase_cdc_ingestion resource, inserts rows into
-#   the source table, and polls Rawtree until they arrive. The schema is
+#   the source table, and polls Tinybird RawTree until they arrive. The schema is
 #   hard-coded — full setup walkthrough (create Supabase project, import the
 #   CSV, set env vars) is in test/supabase/README.md.
 TF_ACC=1 go test -v -timeout 30m \
   -run TestAccSupabaseCDCIngestion_endToEndData \
-  ./internal/resources/supabase_cdc_ingestion/
+  ./internal/resources/integrations/supabase_cdc_ingestion/
 ```
 
 ## 3. Firehose Transform Stub
 
 The `firehose-stub/` directory contains a local HTTP server that implements the
-Rawtree `?transform=firehose` endpoint and a minimal query endpoint. Use this
-when the real Rawtree Firehose transform endpoint is not yet available, or for
+Tinybird RawTree `?transform=firehose` endpoint and a minimal query endpoint. Use this
+when the real Tinybird RawTree Firehose transform endpoint is not yet available, or for
 local development and debugging.
 
 ### What it does
 
 The stub speaks the [Kinesis Data Firehose HTTP endpoint protocol](https://docs.aws.amazon.com/firehose/latest/dev/httpdeliveryrequestresponse.html):
 
-- Receives Firehose deliveries at `POST /v1/{org}/{project}/tables/{table}?transform=firehose`
+- Receives Firehose deliveries at `POST /v1/tables/{table}?database={database}&transform=firehose`
 - Validates `X-Amz-Firehose-Access-Key` header (optional)
 - Decodes base64-encoded records and stores them in memory keyed by table
 - Handles WAF logs that may contain newline-delimited JSON within a single record
 - Deduplicates by `requestId` (Firehose retries use the same ID)
-- Serves `POST /v1/{org}/{project}/query` for `SELECT count() as cnt FROM <table>` queries
+- Serves `POST /v1/query?database={database}` for `SELECT count() as cnt FROM <table>` queries
 - Serves `GET /debug/records` to dump all ingested records
 - Serves `GET /healthz` for health checks
 
@@ -134,13 +174,13 @@ stub via an HTTPS reverse proxy or tunnel (e.g., ngrok, Cloudflare Tunnel).
 curl http://localhost:9876/healthz
 
 # Simulate a Firehose delivery (base64-encode your JSON records)
-curl -X POST 'http://localhost:9876/v1/myorg/myproj/tables/waf_logs?transform=firehose' \
+curl -X POST 'http://localhost:9876/v1/tables/waf_logs?database=my_database&transform=firehose' \
   -H 'Content-Type: application/json' \
   -H 'X-Amz-Firehose-Access-Key: rw_...' \
   -d '{"requestId":"test-001","timestamp":1700000000000,"records":[{"data":"eyJ0aW1lc3RhbXAiOjEyMzR9"}]}'
 
 # Query the count
-curl -X POST 'http://localhost:9876/v1/myorg/myproj/query' \
+curl -X POST 'http://localhost:9876/v1/query?database=my_database' \
   -H 'Content-Type: application/json' \
   -d '{"sql":"SELECT count() as cnt FROM waf_logs"}'
 
@@ -151,21 +191,21 @@ curl http://localhost:9876/debug/records
 ## 4. Running individual E2E tests
 
 Each resource package includes an end-to-end test that provisions real infrastructure,
-generates traffic, and validates data arrives in Rawtree. These run as part of the
+generates traffic, and validates data arrives in Tinybird RawTree. These run as part of the
 full suite above, but you can target them individually:
 
 ```sh
-# WAF E2E only (~9 min — creates Firehose, generates WAF traffic, queries Rawtree)
-TF_ACC=1 go test -v -timeout 45m -run TestAccWafIngestion_endToEndData ./internal/resources/waf_ingestion/
+# WAF E2E only (~9 min — creates Firehose, generates WAF traffic, queries Tinybird RawTree)
+TF_ACC=1 go test -v -timeout 45m -run TestAccWafIngestion_endToEndData ./internal/resources/integrations/waf_ingestion/
 
 # CloudFront E2E only (~10 min — creates distribution + real-time logs, validates data)
-TF_ACC=1 go test -v -timeout 60m -run TestAccCloudfrontIngestion_endToEndData ./internal/resources/cloudfront_ingestion/
+TF_ACC=1 go test -v -timeout 60m -run TestAccCloudfrontIngestion_endToEndData ./internal/resources/integrations/cloudfront_ingestion/
 ```
 
 ## 5. Interactive lab (manual testing)
 
 The `lab/` directory creates a single CloudFront distribution with WAF + real-time
-logs, ingesting both into Rawtree. Use it for manual testing and demos.
+logs, ingesting both into Tinybird RawTree. Use it for manual testing and demos.
 
 ```sh
 cd test/lab

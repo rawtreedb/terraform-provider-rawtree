@@ -1,9 +1,9 @@
 # Supabase CDC end-to-end test setup
 
 `TestAccSupabaseCDCIngestion_endToEndData` provisions a Fargate worker that
-streams CDC events from a Supabase Postgres publication into Rawtree, then
+streams CDC events from a Supabase Postgres publication into Tinybird RawTree, then
 inserts a handful of rows directly into the source table and waits for them
-to appear in Rawtree. To keep the test simple the schema is **fixed** — it
+to appear in Tinybird RawTree. To keep the test simple the schema is **fixed** — it
 expects the canonical "Superstore Sales" dataset (the CSV in this folder)
 imported into a specific table name with specific column names.
 
@@ -17,10 +17,10 @@ The test assumes:
 | Source table | `superstore_sales_data` |
 | Publication | `rawtree_superstore_sales_data_publication` |
 | Primary key | `"Row ID"` (BIGINT) |
-| Rawtree destination table | `public_superstore__sales__data` (created automatically by the worker) |
+| Tinybird RawTree destination table | `public_superstore__sales__data` (created automatically by the worker) |
 
 If you deviate from any of these names, edit the constants at the top of
-[resource_acc_test.go](../../internal/resources/supabase_cdc_ingestion/resource_acc_test.go).
+[resource_acc_test.go](../../internal/resources/integrations/supabase_cdc_ingestion/resource_acc_test.go).
 
 ## 1. Create a Supabase project
 
@@ -50,7 +50,7 @@ from CSV**, pick `train.csv`, and name the table `superstore_sales_data`
 - Infer column types from the data. The dataset uses `DD/MM/YYYY` for dates,
   which Postgres can't parse into `DATE`, so accept whatever Supabase
   suggests (typically `text`). The worker passes values through as strings
-  to Rawtree regardless of column type.
+  to Tinybird RawTree regardless of column type.
 
 When the import finishes you should see ~9994 rows.
 
@@ -116,12 +116,12 @@ simple INSERTs from your laptop.
 ## 6. Run the test
 
 ```sh
-# --- Rawtree credentials ---
+# --- Tinybird RawTree credentials ---
 export RAWTREE_API_KEY="rt_..."
 export RAWTREE_ORG="your-org"
-export RAWTREE_PROJECT="your-project"
+export RAWTREE_DATABASE="your_database"
 # Production host — never use api.us-east-1.aws.rawtree.dev (internal):
-export RAWTREE_URL="https://api.us-east-1.aws.rawtree.com"
+export RAWTREE_URL="https://api.rawtree.com"
 
 # --- Supabase ---
 # Worker uses the direct (IPv6) URL — required:
@@ -132,7 +132,7 @@ export RAWTREE_TEST_SUPABASE_INSERT_URL='postgres://postgres.<ref>:PASSWORD@aws-
 # Supabase CA cert (required in practice; without it TLS verification fails):
 export RAWTREE_TEST_SUPABASE_TLS_ROOT_CERT_PATH="$HOME/supabase-ca.crt"
 
-# Optional: how long to wait for the inserted rows to reach Rawtree.
+# Optional: how long to wait for the inserted rows to reach Tinybird RawTree.
 # Default 15m.
 export RAWTREE_E2E_TIMEOUT=15m
 
@@ -142,7 +142,7 @@ export RAWTREE_E2E_TIMEOUT=15m
 
 TF_ACC=1 go test -v -timeout 30m \
   -run TestAccSupabaseCDCIngestion_endToEndData \
-  ./internal/resources/supabase_cdc_ingestion/
+  ./internal/resources/integrations/supabase_cdc_ingestion/
 ```
 
 What the test does, in order:
@@ -154,11 +154,11 @@ What the test does, in order:
 3. Creates the `rawtree_supabase_cdc_ingestion` resource — Secrets Manager
    secret, log group, IAM role, ECS cluster, task definition, and the
    long-running Fargate service (one task, `desiredCount=1`).
-4. Reads the current row count in the Rawtree destination table
+4. Reads the current row count in the Tinybird RawTree destination table
    (`public_superstore__sales__data`).
 5. Inserts 5 synthetic rows into `public.superstore_sales_data` via the
    pooler URL, using random `Row ID`s in the billions to avoid PK conflicts.
-6. Polls Rawtree's query API until the count grows by ≥ 5 (or
+6. Polls Tinybird RawTree's query API until the count grows by ≥ 5 (or
    `RAWTREE_E2E_TIMEOUT` expires).
 7. Destroys everything — VPC, ECS resources, IAM role, log group, secret.
    The Postgres replication slot is **not** dropped; see "Cleanup" below.
@@ -194,7 +194,7 @@ WHERE "Order ID" LIKE 'TEST-%';
 | `Failed to run initialization ECS task` | Init was meant to be off; if you've edited the config, set `run_initialization_task = false`. |
 | `Network is unreachable` in worker logs | VPC didn't get an IPv6 path. Check the route table includes `::/0 → IGW` and the subnet has an IPv6 CIDR. |
 | `InvalidCertificate(UnknownIssuer)` | Missing `RAWTREE_TEST_SUPABASE_TLS_ROOT_CERT_PATH` or the file doesn't contain the Supabase CA. |
-| `RawTree ingest failed: status=502 Bad Gateway` | `RAWTREE_URL` points at `.dev` or another env where your account doesn't exist. Use `https://api.us-east-1.aws.rawtree.com`. |
+| `ingest failed: status=502 Bad Gateway` in worker logs | `RAWTREE_URL` points at `.dev` or another env where your account doesn't exist. Use `https://api.rawtree.com`. |
 | `connect: no route to host` from the test process | The test is connecting to Supabase direct from your laptop. Set `RAWTREE_TEST_SUPABASE_INSERT_URL` to the pooler URL. |
 | `Failed to inspect source database recovery state` | The worker can reach Postgres at the TCP level but is failing on something at handshake. Check the CA path, `sslmode` in the URL, and that the user has `REPLICATION` role. |
-| `table sync worker failed ... DestinationQueryFailed` | Worker reached Rawtree's API but got a non-2xx. Most often a 502 from a wrong `RAWTREE_URL`. |
+| `table sync worker failed ... DestinationQueryFailed` | Worker reached Tinybird RawTree's API but got a non-2xx. Most often a 502 from a wrong `RAWTREE_URL`. |

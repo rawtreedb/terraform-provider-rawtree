@@ -1,19 +1,19 @@
 ---
-page_title: "rawtree_s3_ingestion Resource - Rawtree"
-subcategory: ""
+page_title: "rawtree_s3_ingestion Resource - Tinybird RawTree"
+subcategory: "Integrations"
 description: |-
-  Manages S3 data ingestion into Rawtree.
+  Manages S3 data ingestion into Tinybird RawTree.
 ---
 
 # rawtree_s3_ingestion (Resource)
 
-Manages S3 data ingestion into Rawtree. Creates an AWS Glue job for batch ingestion of existing objects and a Lambda function with EventBridge for ongoing ingestion of new objects.
+Manages S3 data ingestion into Tinybird RawTree. Creates an AWS Glue job for batch ingestion of existing objects and a Lambda function with EventBridge for ongoing ingestion of new objects.
 
 ## How It Works
 
-1. **Batch ingestion** (on `terraform apply`): A Glue job lists all matching files in the specified S3 bucket/prefix, generates presigned URLs, and sends them to the Rawtree API. Rawtree downloads each file directly from S3.
+1. **Batch ingestion** (on `terraform apply`): A Glue job lists all matching files in the specified S3 bucket/prefix, generates presigned URLs, and sends them to the Tinybird RawTree API. Tinybird RawTree downloads each file directly from S3.
 
-2. **Ongoing ingestion** (continuous): An EventBridge rule triggers a Lambda function whenever a new object is created in the bucket. The Lambda generates a presigned URL and sends it to Rawtree for ingestion.
+2. **Ongoing ingestion** (continuous): An EventBridge rule triggers a Lambda function whenever a new object is created in the bucket. The Lambda generates a presigned URL and sends it to Tinybird RawTree for ingestion.
 
 ## Example Usage
 
@@ -32,12 +32,16 @@ resource "rawtree_s3_ingestion" "events" {
 
 ### Required
 
-- `table` (String) - The Rawtree table name to ingest data into. Will be auto-created on first insert.
+- `table` (String) - The Tinybird RawTree table name to ingest data into. Will be auto-created on first insert.
 - `bucket` (String) - The S3 bucket name containing source data. Changing this forces a new resource.
 - `format` (String) - File format of the source data. One of: `parquet`, `csv`, `json`. Changing this forces a new resource.
 - `region` (String) - AWS region where Glue, Lambda, and EventBridge resources will be created. Changing this forces a new resource.
 
 ### Optional
+
+- `organization` (String) is the Tinybird RawTree organization used in AWS resource names. Defaults to the provider organization.
+- `database` (String) selects the destination database. Defaults to the provider database.
+- `project` (String, deprecated) is an alias for `database`.
 
 - `prefix` (String) - S3 key prefix to filter objects. Changing this forces a new resource.
 - `file_pattern` (String) - Regular expression pattern to filter object keys.

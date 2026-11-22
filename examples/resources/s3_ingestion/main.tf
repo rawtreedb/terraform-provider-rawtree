@@ -8,11 +8,11 @@ terraform {
 }
 
 provider "rawtree" {
-  # Uses RAWTREE_API_KEY, RAWTREE_ORG, RAWTREE_PROJECT env vars
+  # Uses RAWTREE_API_KEY, RAWTREE_ORG, RAWTREE_DATABASE env vars
   # or rtree CLI config from ~/.config/rtree/config.json
 }
 
-# Ingest all JSON files from an S3 bucket into a Rawtree table.
+# Ingest all JSON files from an S3 bucket into a Tinybird RawTree table.
 # Existing files are ingested via a one-time Glue job.
 # New files are automatically ingested via EventBridge + Lambda.
 resource "rawtree_s3_ingestion" "events" {
