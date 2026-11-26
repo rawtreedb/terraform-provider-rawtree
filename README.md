@@ -1,6 +1,6 @@
 # Terraform Provider for RawTree
 
-Use this provider to manage [RawTree](https://rawtree.com) databases, tables, API keys, workflows and clusters, and to build AWS pipelines that ingest data into RawTree.
+Use this provider to manage [RawTree](https://rawtree.com) databases, tables, API keys, workflows, clusters and connectors, and to build AWS pipelines that ingest data into RawTree.
 
 ## Resources
 
@@ -11,6 +11,7 @@ Use this provider to manage [RawTree](https://rawtree.com) databases, tables, AP
 | [`rawtree_api_key`](docs/resources/api_key.md) | API key with a permission level or database roles | API key |
 | [`rawtree_workflow`](docs/resources/workflow.md) | Scheduled SQL query with table, HTTP and Slack sinks | API key |
 | [`rawtree_cluster`](docs/resources/cluster.md) | Cluster in an organization region | Access token (interactive use only) |
+| [`rawtree_connector`](docs/resources/connector.md) | Kafka, Postgres or NATS connector | Access token (interactive use only) |
 | [`rawtree_s3_ingestion`](docs/resources/s3_ingestion.md) | Batch + streaming ingestion from S3 via Glue, Lambda, and EventBridge | API key |
 | [`rawtree_supabase_cdc_ingestion`](docs/resources/supabase_cdc_ingestion.md) | Supabase Postgres CDC ingestion via ECS Fargate | API key |
 | [`rawtree_waf_ingestion`](docs/resources/waf_ingestion.md) | Real-time AWS WAF log streaming via Kinesis Data Firehose | API key |
@@ -48,7 +49,7 @@ Use this provider to manage [RawTree](https://rawtree.com) databases, tables, AP
 
 ## Requirements
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
+- [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0 (>= 1.11 for `rawtree_connector` credentials, which are write-only)
 - [Go](https://golang.org/doc/install) >= 1.26 (to build the provider)
 - AWS credentials with the [required permissions](#required-aws-permissions) (ingestion resources only)
 - A [RawTree](https://rawtree.com) account with an API key (`rt_...`), and an access token for the access-token resources
