@@ -269,6 +269,12 @@ func (r *TableResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
+	if known(plan.SortingKey) && plan.SortingKey.ValueString() == "" && state.SortingKey.ValueString() != "" {
+		resp.Diagnostics.AddAttributeError(path.Root("sorting_key"), "A sorting key cannot be reset to empty",
+			"The RawTree API accepts an empty sorting key only when the table is created. Keep `sorting_key` set, or replace the table (this deletes its data).")
+		return
+	}
+
 	// The API accepts one configuration field per PATCH.
 	var patches []map[string]any
 	if known(plan.SortingKey) && !plan.SortingKey.Equal(state.SortingKey) {

@@ -65,8 +65,8 @@ func (r *S3IngestionResource) Configure(_ context.Context, req resource.Configur
 }
 
 // ModifyPlan sets the provider-derived attributes from the current provider
-// config, so a changed API URL, API key or database triggers an Update that
-// rewrites the Lambda and Glue settings.
+// config, so a changed API URL, API key or database triggers an Update of the
+// Lambda function. Update does not change the Glue job.
 func (r *S3IngestionResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() || r.client == nil {
 		return

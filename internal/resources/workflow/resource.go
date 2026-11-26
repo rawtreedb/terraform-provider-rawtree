@@ -76,11 +76,40 @@ func (r *WorkflowResource) Create(ctx context.Context, req resource.CreateReques
 	}
 	var w apiWorkflow
 	if err := r.client.Data(ctx, http.MethodPost, "/v1/workflows", nil, body, &w); err != nil {
-		resp.Diagnostics.AddError("Failed to create workflow", err.Error())
-		return
+		created, ok := r.createdDespite(ctx, err, plan.Name.ValueString())
+		if !ok {
+			resp.Diagnostics.AddError("Failed to create workflow", err.Error())
+			return
+		}
+		w = created
+		resp.Diagnostics.AddWarning("Workflow created, schedule not confirmed",
+			"The API created the workflow but did not confirm its schedule: "+err.Error())
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, toModel(w, plan, nil, true))...)
 	resp.Diagnostics.Append(saveSinkURLs(ctx, resp.Private, w)...)
+}
+
+// createdDespite finds the workflow that a failed create call left behind.
+// The API returns these two errors after it stored the definition, so without
+// this lookup the workflow is an orphan and the retry fails on its name.
+func (r *WorkflowResource) createdDespite(ctx context.Context, err error, name string) (apiWorkflow, bool) {
+	if !client.IsAPIError(err, http.StatusServiceUnavailable, "Could not confirm workflow creation.") &&
+		!client.IsAPIError(err, http.StatusConflict, "The workflow schedule was created concurrently.") {
+		return apiWorkflow{}, false
+	}
+	var list struct {
+		Workflows []apiWorkflow `json:"workflows"`
+	}
+	if err := r.client.Data(ctx, http.MethodGet, "/v1/workflows", nil, nil, &list); err != nil {
+		return apiWorkflow{}, false
+	}
+	// Names are unique in a cluster, and the API stores them trimmed and in lower case.
+	for _, w := range list.Workflows {
+		if w.Name == strings.ToLower(strings.TrimSpace(name)) {
+			return w, true
+		}
+	}
+	return apiWorkflow{}, false
 }
 
 func (r *WorkflowResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
