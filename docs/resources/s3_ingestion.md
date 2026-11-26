@@ -41,6 +41,7 @@ resource "rawtree_s3_ingestion" "events" {
 
 - `prefix` (String) - S3 key prefix to filter objects. Changing this forces a new resource.
 - `file_pattern` (String) - Regular expression pattern to filter object keys.
+- `database` (String) - The RawTree database. Defaults to the provider `database`, else the API key's database. Changing it updates the Lambda and Glue settings in place.
 
 ### Read-Only
 

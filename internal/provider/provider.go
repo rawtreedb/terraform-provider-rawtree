@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	defaultAPIURL = "https://api.us-east-1.aws.rawtree.com"
+	defaultAPIURL = "https://api.rawtree.com"
 	cliConfigPath = ".config/rtree/config.json"
 )
 
@@ -35,6 +35,7 @@ type RawtreeProviderModel struct {
 	APIKey       types.String `tfsdk:"api_key"`
 	APIURL       types.String `tfsdk:"api_url"`
 	Organization types.String `tfsdk:"organization"`
+	Database     types.String `tfsdk:"database"`
 	Project      types.String `tfsdk:"project"`
 }
 
@@ -42,8 +43,10 @@ type RawtreeProviderModel struct {
 type cliConfig struct {
 	Token               string `json:"token"`
 	URL                 string `json:"url"`
-	DefaultProject      string `json:"default_project"`
+	Database            string `json:"database"`
+	DefaultDatabase     string `json:"default_database"`
 	DefaultOrganization string `json:"default_organization"`
+	DefaultProject      string `json:"default_project"`
 }
 
 func New(version string) func() provider.Provider {
@@ -61,24 +64,30 @@ func (p *RawtreeProvider) Metadata(_ context.Context, _ provider.MetadataRequest
 
 func (p *RawtreeProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "The Rawtree provider enables automated data ingestion into Rawtree from AWS sources (S3, WAF logs, CloudFront real-time logs).",
+		Description: "The RawTree provider builds AWS pipelines that ingest S3, WAF, CloudFront and Supabase data into RawTree.",
 		Attributes: map[string]schema.Attribute{
 			"api_key": schema.StringAttribute{
-				Optional:    true,
-				Sensitive:   true,
-				Description: "Rawtree API key (rw_...). Can also be set via RAWTREE_API_KEY env var, or auto-detected from rtree CLI config.",
+				Optional:  true,
+				Sensitive: true,
+				Description: "RawTree API key (rt_...). The key selects its organization, cluster and default database. " +
+					"Required by the ingestion resources. Can also be set via RAWTREE_API_KEY, or read from the rtree CLI config.",
 			},
 			"api_url": schema.StringAttribute{
 				Optional:    true,
-				Description: fmt.Sprintf("Rawtree API URL. Defaults to %s. Can also be set via RAWTREE_URL env var.", defaultAPIURL),
+				Description: fmt.Sprintf("RawTree API URL. Defaults to %s. Can also be set via RAWTREE_API_URL.", defaultAPIURL),
 			},
 			"organization": schema.StringAttribute{
 				Optional:    true,
-				Description: "Rawtree organization name. Can also be set via RAWTREE_ORG env var.",
+				Description: "RawTree organization name. Only passed to the rawtree_supabase_cdc_ingestion worker. Can also be set via RAWTREE_ORG.",
+			},
+			"database": schema.StringAttribute{
+				Optional:    true,
+				Description: "Default RawTree database for ingestion. Defaults to the API key's database. Can also be set via RAWTREE_DATABASE.",
 			},
 			"project": schema.StringAttribute{
-				Optional:    true,
-				Description: "Rawtree project name. Can also be set via RAWTREE_PROJECT env var.",
+				Optional:           true,
+				DeprecationMessage: "RawTree no longer has projects. Only rawtree_supabase_cdc_ingestion reads this value.",
+				Description:        "Deprecated. Only passed to the rawtree_supabase_cdc_ingestion worker. Can also be set via RAWTREE_PROJECT.",
 			},
 		},
 	}
@@ -91,49 +100,28 @@ func (p *RawtreeProvider) Configure(ctx context.Context, req provider.ConfigureR
 		return
 	}
 
-	// Load CLI config as fallback.
+	// Each value resolves in this order: provider block, environment, rtree CLI config.
 	cli := loadCLIConfig()
 
-	// Resolve API key: provider → env → CLI config
 	apiKey := resolveString(config.APIKey, "RAWTREE_API_KEY", cli.Token)
 	if apiKey == "" {
 		resp.Diagnostics.AddError(
-			"Missing API Key",
-			"A Rawtree API key must be provided via the provider 'api_key' attribute, "+
-				"the RAWTREE_API_KEY environment variable, or by logging in with the rtree CLI.",
+			"Missing RawTree API key",
+			"Set the provider 'api_key' attribute or RAWTREE_API_KEY, or log in with the rtree CLI.",
 		)
 		return
 	}
 
-	// Resolve API URL: provider → env → CLI config → default
-	apiURL := resolveString(config.APIURL, "RAWTREE_URL", cli.URL)
-	if apiURL == "" {
-		apiURL = defaultAPIURL
-	}
+	// RAWTREE_URL is the old variable name; the rtree CLI uses RAWTREE_API_URL.
+	apiURL := resolveString(config.APIURL, "RAWTREE_API_URL", firstNonEmpty(os.Getenv("RAWTREE_URL"), cli.URL, defaultAPIURL))
 
-	// Resolve organization: provider → env → CLI config
-	org := resolveString(config.Organization, "RAWTREE_ORG", cli.DefaultOrganization)
-	if org == "" {
-		resp.Diagnostics.AddError(
-			"Missing Organization",
-			"A Rawtree organization must be provided via the provider 'organization' attribute, "+
-				"the RAWTREE_ORG environment variable, or by setting a default in the rtree CLI.",
-		)
-		return
-	}
-
-	// Resolve project: provider → env → CLI config
-	project := resolveString(config.Project, "RAWTREE_PROJECT", cli.DefaultProject)
-	if project == "" {
-		resp.Diagnostics.AddError(
-			"Missing Project",
-			"A Rawtree project must be provided via the provider 'project' attribute, "+
-				"the RAWTREE_PROJECT environment variable, or by setting a default in the rtree CLI.",
-		)
-		return
-	}
-
-	c := client.New(apiKey, apiURL, org, project)
+	c := client.New(
+		apiKey,
+		apiURL,
+		resolveString(config.Organization, "RAWTREE_ORG", cli.DefaultOrganization),
+		resolveString(config.Database, "RAWTREE_DATABASE", firstNonEmpty(cli.Database, cli.DefaultDatabase)),
+		resolveString(config.Project, "RAWTREE_PROJECT", cli.DefaultProject),
+	)
 
 	resp.DataSourceData = c
 	resp.ResourceData = c
@@ -161,6 +149,15 @@ func resolveString(tfValue types.String, envVar string, fallback string) string 
 		return v
 	}
 	return fallback
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // loadCLIConfig reads the rtree CLI configuration file.

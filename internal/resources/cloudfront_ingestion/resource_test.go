@@ -1,6 +1,7 @@
 package cloudfront_ingestion
 
 import (
+	"github.com/rawtreedb/terraform-provider-rawtree/internal/client"
 	"testing"
 
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/util"
@@ -39,14 +40,11 @@ func TestKinesisStreamName(t *testing.T) {
 func TestEndpointURL(t *testing.T) {
 	t.Parallel()
 
-	apiURL := "https://api.us-east-1.aws.rawtree.com"
-	org := "myorg"
-	project := "myproject"
-	table := "cf_logs"
+	c := client.New("rt_x", "https://api.rawtree.com", "", "", "")
 	fields := []string{"timestamp", "c-ip", "sc-status"}
 
-	expected := "https://api.us-east-1.aws.rawtree.com/v1/myorg/myproject/tables/cf_logs?transform=firehose&columns=timestamp,c-ip,sc-status"
-	got := buildEndpointURL(apiURL, org, project, table, fields)
+	expected := "https://api.rawtree.com/v1/tables/cf_logs?columns=timestamp%2Cc-ip%2Csc-status&database=analytics&transform=firehose"
+	got := buildEndpointURL(c, "analytics", "cf_logs", fields)
 
 	if got != expected {
 		t.Errorf("endpoint URL mismatch:\n  got:  %s\n  want: %s", got, expected)

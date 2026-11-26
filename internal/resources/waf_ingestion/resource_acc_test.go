@@ -32,12 +32,6 @@ func testAccPreCheck(t *testing.T) {
 	if v := os.Getenv("RAWTREE_API_KEY"); v == "" {
 		t.Fatal("RAWTREE_API_KEY must be set for acceptance tests")
 	}
-	if v := os.Getenv("RAWTREE_ORG"); v == "" {
-		t.Fatal("RAWTREE_ORG must be set for acceptance tests")
-	}
-	if v := os.Getenv("RAWTREE_PROJECT"); v == "" {
-		t.Fatal("RAWTREE_PROJECT must be set for acceptance tests")
-	}
 	if v := os.Getenv("RAWTREE_TEST_WAF_WEB_ACL_ARN"); v == "" {
 		t.Fatal("RAWTREE_TEST_WAF_WEB_ACL_ARN must be set for acceptance tests (an existing WAFv2 Web ACL ARN)")
 	}
@@ -340,12 +334,6 @@ func testAccPreCheckE2E(t *testing.T) {
 	if v := os.Getenv("RAWTREE_API_KEY"); v == "" {
 		t.Fatal("RAWTREE_API_KEY must be set for acceptance tests")
 	}
-	if v := os.Getenv("RAWTREE_ORG"); v == "" {
-		t.Fatal("RAWTREE_ORG must be set for acceptance tests")
-	}
-	if v := os.Getenv("RAWTREE_PROJECT"); v == "" {
-		t.Fatal("RAWTREE_PROJECT must be set for acceptance tests")
-	}
 }
 
 func TestAccWafIngestion_endToEndData(t *testing.T) {
@@ -427,16 +415,14 @@ func generateCloudFrontTraffic(domain string, numRequests int) error {
 // testAccWaitForRawtreeData polls Rawtree until the table has at least minRows
 // or the timeout expires.
 func testAccWaitForRawtreeData(tableName string, minRows int, timeout time.Duration) error {
-	apiURL := os.Getenv("RAWTREE_URL")
+	apiURL := os.Getenv("RAWTREE_API_URL")
 	if apiURL == "" {
-		apiURL = "https://api.us-east-1.aws.rawtree.dev"
+		apiURL = "https://api.rawtree.com"
 	}
 	apiKey := os.Getenv("RAWTREE_API_KEY")
-	org := os.Getenv("RAWTREE_ORG")
-	project := os.Getenv("RAWTREE_PROJECT")
 
 	deadline := time.Now().Add(timeout)
-	queryURL := fmt.Sprintf("%s/v1/%s/%s/query", apiURL, org, project)
+	queryURL := apiURL + "/v1/query?database=" + os.Getenv("RAWTREE_DATABASE")
 	query := fmt.Sprintf(`SELECT count() as cnt FROM %s`, tableName)
 	body := fmt.Sprintf(`{"sql":%q}`, query)
 

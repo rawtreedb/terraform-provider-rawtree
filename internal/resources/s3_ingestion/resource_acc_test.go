@@ -34,12 +34,6 @@ func testAccPreCheck(t *testing.T) {
 	if v := os.Getenv("RAWTREE_API_KEY"); v == "" {
 		t.Fatal("RAWTREE_API_KEY must be set for acceptance tests")
 	}
-	if v := os.Getenv("RAWTREE_ORG"); v == "" {
-		t.Fatal("RAWTREE_ORG must be set for acceptance tests")
-	}
-	if v := os.Getenv("RAWTREE_PROJECT"); v == "" {
-		t.Fatal("RAWTREE_PROJECT must be set for acceptance tests")
-	}
 	if v := os.Getenv("RAWTREE_TEST_S3_BUCKET"); v == "" {
 		t.Fatal("RAWTREE_TEST_S3_BUCKET must be set for acceptance tests (an existing S3 bucket with test data)")
 	}
@@ -273,16 +267,16 @@ func testAccCheckGlueJobSucceeded(resourceName string) resource.TestCheckFunc {
 // testAccCheckRawtreeHasData queries Rawtree and verifies the table has the expected number of rows.
 func testAccCheckRawtreeHasData(tableName string, expectedRows int) resource.TestCheckFunc {
 	return func(s *terraform.State) error {
-		apiURL := os.Getenv("RAWTREE_URL")
+		apiURL := os.Getenv("RAWTREE_API_URL")
 		if apiURL == "" {
-			apiURL = "https://api.us-east-1.aws.rawtree.dev"
+			apiURL = "https://api.rawtree.com"
 		}
 		apiKey := os.Getenv("RAWTREE_API_KEY")
 
 		query := fmt.Sprintf(`SELECT count() as cnt FROM %s`, tableName)
 		body := fmt.Sprintf(`{"sql":%q}`, query)
 
-		url := fmt.Sprintf("%s/v1/query", apiURL)
+		url := apiURL + "/v1/query?database=" + os.Getenv("RAWTREE_DATABASE")
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		if err != nil {
 			return fmt.Errorf("creating query request: %w", err)

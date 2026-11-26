@@ -20,10 +20,9 @@ type CloudfrontIngestionModel struct {
 	S3BackupMode      types.String `tfsdk:"s3_backup_mode"`
 
 	// Provider-derived attributes (trigger update when provider config changes).
-	APIURL       types.String `tfsdk:"api_url"`
-	APIKeyHash   types.String `tfsdk:"api_key_hash"`
-	Organization types.String `tfsdk:"organization"`
-	Project      types.String `tfsdk:"project"`
+	APIURL     types.String `tfsdk:"api_url"`
+	APIKeyHash types.String `tfsdk:"api_key_hash"`
+	Database   types.String `tfsdk:"database"`
 
 	// Full Firehose HTTP endpoint URL.
 	EndpointURL types.String `tfsdk:"endpoint_url"`

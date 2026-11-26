@@ -1,15 +1,15 @@
-# Terraform Provider for Rawtree
+# Terraform Provider for RawTree
 
-The Rawtree Terraform provider enables automated data ingestion from AWS sources into [Rawtree](https://rawtree.dev), a schemaless analytical database.
+Use this provider to build AWS pipelines that ingest data into [RawTree](https://rawtree.com).
 
 ## Resources
 
-| Resource | Description | Docs |
-|----------|-------------|------|
-| [`rawtree_s3_ingestion`](docs/resources/s3_ingestion.md) | Batch + streaming ingestion from S3 via Glue, Lambda, and EventBridge | [Full docs](docs/resources/s3_ingestion.md) |
-| [`rawtree_supabase_cdc_ingestion`](docs/resources/supabase_cdc_ingestion.md) | Supabase Postgres CDC ingestion via ECS Fargate | [Full docs](docs/resources/supabase_cdc_ingestion.md) |
-| [`rawtree_waf_ingestion`](docs/resources/waf_ingestion.md) | Real-time AWS WAF log streaming via Kinesis Data Firehose | [Full docs](docs/resources/waf_ingestion.md) |
-| [`rawtree_cloudfront_ingestion`](docs/resources/cloudfront_ingestion.md) | Real-time CloudFront access log streaming via Kinesis and Firehose | [Full docs](docs/resources/cloudfront_ingestion.md) |
+| Resource | Description |
+|----------|-------------|
+| [`rawtree_s3_ingestion`](docs/resources/s3_ingestion.md) | Batch + streaming ingestion from S3 via Glue, Lambda, and EventBridge |
+| [`rawtree_supabase_cdc_ingestion`](docs/resources/supabase_cdc_ingestion.md) | Supabase Postgres CDC ingestion via ECS Fargate |
+| [`rawtree_waf_ingestion`](docs/resources/waf_ingestion.md) | Real-time AWS WAF log streaming via Kinesis Data Firehose |
+| [`rawtree_cloudfront_ingestion`](docs/resources/cloudfront_ingestion.md) | Real-time CloudFront access log streaming via Kinesis and Firehose |
 
 ## Features
 
@@ -44,9 +44,9 @@ The Rawtree Terraform provider enables automated data ingestion from AWS sources
 ## Requirements
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
-- [Go](https://golang.org/doc/install) >= 1.22 (to build the provider)
+- [Go](https://golang.org/doc/install) >= 1.26 (to build the provider)
 - AWS credentials with the [required permissions](#required-aws-permissions)
-- A [Rawtree](https://rawtree.dev) account with an API key
+- A [RawTree](https://rawtree.com) account with an API key (`rt_...`)
 
 ## Installation
 
@@ -55,7 +55,7 @@ terraform {
   required_providers {
     rawtree = {
       source  = "rawtreedb/rawtree"
-      version = "~> 0.1"
+      version = "~> 0.2"
     }
   }
 }
@@ -63,19 +63,24 @@ terraform {
 
 ## Authentication
 
-The provider resolves credentials in this order:
+The provider uses a RawTree API key (`rt_...`). The key selects its organization, cluster and default database.
+
+The provider resolves each value in this order:
 
 1. Provider configuration block
-2. Environment variables (`RAWTREE_API_KEY`, `RAWTREE_URL`, `RAWTREE_ORG`, `RAWTREE_PROJECT`)
-3. Rawtree CLI config file (`~/.config/rtree/config.json` — created by `rtree login`)
+2. Environment variables (`RAWTREE_API_KEY`, `RAWTREE_API_URL`, `RAWTREE_DATABASE`)
+3. rtree CLI config file (`~/.config/rtree/config.json`, created by `rtree login`)
 
 ```hcl
 provider "rawtree" {
-  api_key      = var.rawtree_api_key    # or set RAWTREE_API_KEY
-  organization = "my-org"               # or set RAWTREE_ORG
-  project      = "my-project"           # or set RAWTREE_PROJECT
+  api_key  = var.rawtree_api_key # or set RAWTREE_API_KEY
+  database = "analytics"         # optional, defaults to the API key's database
 }
 ```
+
+### Upgrade from 0.1
+
+RawTree no longer has projects. Remove `project` from the provider block, and remove `organization` and `project` from the ingestion resources. Set `database` if you do not use the API key's database. The first `terraform apply` updates each WAF, CloudFront and S3 pipeline in place to the new ingest URL. It does not replace AWS resources. `rawtree_supabase_cdc_ingestion` still reads the deprecated `project` value.
 
 ## Quick Start
 

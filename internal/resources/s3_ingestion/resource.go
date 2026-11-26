@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -23,6 +24,7 @@ import (
 var (
 	_ resource.Resource                = &S3IngestionResource{}
 	_ resource.ResourceWithImportState = &S3IngestionResource{}
+	_ resource.ResourceWithModifyPlan  = &S3IngestionResource{}
 )
 
 type S3IngestionResource struct {
@@ -55,6 +57,34 @@ func (r *S3IngestionResource) Configure(_ context.Context, req resource.Configur
 		return
 	}
 	r.client = client
+	// The pipeline sends data with the API key; an access token expires and cannot ingest.
+	if client.APIKey == "" {
+		resp.Diagnostics.AddError("Missing RawTree API key",
+			"This resource needs the provider 'api_key' attribute (or RAWTREE_API_KEY). An access token cannot be used for ingestion.")
+	}
+}
+
+// ModifyPlan sets the provider-derived attributes from the current provider
+// config, so a changed API URL, API key or database triggers an Update that
+// rewrites the Lambda and Glue settings.
+func (r *S3IngestionResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() || r.client == nil {
+		return
+	}
+
+	var plan S3IngestionModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	var configDatabase types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("database"), &configDatabase)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	plan.Database = types.StringValue(r.client.DatabaseOr(configDatabase.ValueString()))
+	plan.APIURL = types.StringValue(r.client.APIURL)
+	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
 
 func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -71,18 +101,11 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	format := plan.Format.ValueString()
 	filePattern := plan.FilePattern.ValueString()
 
-	// Resolve org/project: resource attribute takes priority, then provider config.
-	org := r.client.Organization
-	if !plan.Organization.IsNull() && !plan.Organization.IsUnknown() && plan.Organization.ValueString() != "" {
-		org = plan.Organization.ValueString()
-	}
-	project := r.client.Project
-	if !plan.Project.IsNull() && !plan.Project.IsUnknown() && plan.Project.ValueString() != "" {
-		project = plan.Project.ValueString()
-	}
+	database := r.client.DatabaseOr(plan.Database.ValueString())
 
 	// Generate unique resource name (S3-safe: lowercase, alphanumeric, hyphens, max 40 chars).
-	resourceName := util.SanitizeResourceName(fmt.Sprintf("%s-%s-%s", org, project, table))
+	// The API key selects the cluster: the same database and table in two clusters must not share AWS names.
+	resourceName := util.SanitizeResourceName(database+"-"+table, util.HashString(r.client.APIKey))
 
 	// Initialize AWS clients.
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
@@ -135,7 +158,7 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	glueJobName := fmt.Sprintf("rawtree-ingest-%s", resourceName)
 	state.GlueJobName = glueJobName
 
-	ingestEndpoint := buildIngestEndpoint(r.client.APIURL, org, project, table)
+	ingestEndpoint := r.client.TableURL("", table, nil) // the scripts add database= next to url=
 
 	glueParams := map[string]string{
 		"BUCKET":          bucket,
@@ -146,6 +169,7 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 		"API_KEY":         r.client.APIKey,
 		"TABLE":           table,
 		"INGEST_ENDPOINT": ingestEndpoint,
+		"DATABASE":        database,
 		"CONCURRENCY":     "10",
 	}
 
@@ -181,6 +205,7 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 		"FILE_PATTERN":    filePattern,
 		"PREFIX":          prefix,
 		"INGEST_ENDPOINT": ingestEndpoint,
+		"DATABASE":        database,
 	}
 
 	lambdaARN, err := createLambdaFunction(ctx, lambdaClient, lambdaFunctionName, lambdaRoleARN, lambdaEnvVars)
@@ -223,8 +248,7 @@ func (r *S3IngestionResource) Create(ctx context.Context, req resource.CreateReq
 	plan.ID = types.StringValue(resourceName)
 	plan.APIURL = types.StringValue(r.client.APIURL)
 	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
-	plan.Organization = types.StringValue(org)
-	plan.Project = types.StringValue(project)
+	plan.Database = types.StringValue(database)
 	plan.GlueJobName = types.StringValue(glueJobName)
 	plan.GlueJobRunID = types.StringValue(runID)
 	plan.LambdaFunctionARN = types.StringValue(lambdaARN)
@@ -282,13 +306,6 @@ func (r *S3IngestionResource) Read(ctx context.Context, req resource.ReadRequest
 	// Refresh provider-derived values so changes trigger an update.
 	data.APIURL = types.StringValue(r.client.APIURL)
 	data.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
-	// Only refresh org/project from provider if not explicitly set in the resource.
-	if data.Organization.IsNull() || data.Organization.ValueString() == "" {
-		data.Organization = types.StringValue(r.client.Organization)
-	}
-	if data.Project.IsNull() || data.Project.ValueString() == "" {
-		data.Project = types.StringValue(r.client.Project)
-	}
 
 	// Preserve private state.
 	resp.Private.SetKey(ctx, "aws_resources", stateJSON)
@@ -324,17 +341,9 @@ func (r *S3IngestionResource) Update(ctx context.Context, req resource.UpdateReq
 
 	lambdaClient := lambda.NewFromConfig(awsCfg)
 
-	// Resolve org/project: resource attribute takes priority, then provider config.
-	org := r.client.Organization
-	if !plan.Organization.IsNull() && !plan.Organization.IsUnknown() && plan.Organization.ValueString() != "" {
-		org = plan.Organization.ValueString()
-	}
-	project := r.client.Project
-	if !plan.Project.IsNull() && !plan.Project.IsUnknown() && plan.Project.ValueString() != "" {
-		project = plan.Project.ValueString()
-	}
+	database := r.client.DatabaseOr(plan.Database.ValueString())
 
-	ingestEndpoint := buildIngestEndpoint(r.client.APIURL, org, project, plan.Table.ValueString())
+	ingestEndpoint := r.client.TableURL("", plan.Table.ValueString(), nil)
 
 	// Update Lambda environment variables.
 	envVars := map[string]string{
@@ -345,6 +354,7 @@ func (r *S3IngestionResource) Update(ctx context.Context, req resource.UpdateReq
 		"FILE_PATTERN":    plan.FilePattern.ValueString(),
 		"PREFIX":          plan.Prefix.ValueString(),
 		"INGEST_ENDPOINT": ingestEndpoint,
+		"DATABASE":        database,
 	}
 
 	if err := updateLambdaCode(ctx, lambdaClient, state.LambdaFunctionName); err != nil {
@@ -360,8 +370,7 @@ func (r *S3IngestionResource) Update(ctx context.Context, req resource.UpdateReq
 	// Update provider-derived values in state.
 	plan.APIURL = types.StringValue(r.client.APIURL)
 	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
-	plan.Organization = types.StringValue(org)
-	plan.Project = types.StringValue(project)
+	plan.Database = types.StringValue(database)
 
 	// Preserve private state.
 	resp.Private.SetKey(ctx, "aws_resources", stateJSON)
@@ -453,9 +462,4 @@ func (r *S3IngestionResource) ImportState(ctx context.Context, req resource.Impo
 		"The rawtree_s3_ingestion resource does not support import. "+
 			"Please create the resource using Terraform.",
 	)
-}
-
-// buildIngestEndpoint constructs the full ingest path including org/project routing.
-func buildIngestEndpoint(apiURL, org, project, table string) string {
-	return fmt.Sprintf("%s/v1/%s/%s/tables/%s", apiURL, org, project, table)
 }

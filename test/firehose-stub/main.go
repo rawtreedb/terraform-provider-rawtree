@@ -13,8 +13,8 @@
 //	export RAWTREE_URL=http://localhost:9876
 //
 // The stub exposes:
-//   - POST /v1/{org}/{project}/tables/{table}?transform=firehose  (Firehose delivery)
-//   - POST /v1/{org}/{project}/query                              (SQL count queries)
+//   - POST /v1/tables/{table}?transform=firehose  (Firehose delivery)
+//   - POST /v1/query                              (SQL count queries)
 //   - GET  /debug/records                                         (dump all records)
 //   - GET  /healthz                                               (health check)
 package main
@@ -122,10 +122,10 @@ func (s *store) allRecords() map[string][]json.RawMessage {
 }
 
 var (
-	// /v1/{org}/{project}/tables/{table}
-	firehosePathRe = regexp.MustCompile(`^/v1/([^/]+)/([^/]+)/tables/([^/?]+)`)
-	// /v1/{org}/{project}/query
-	queryPathRe = regexp.MustCompile(`^/v1/([^/]+)/([^/]+)/query$`)
+	// /v1/tables/{table}
+	firehosePathRe = regexp.MustCompile(`^/v1/tables/([^/?]+)`)
+	// /v1/query
+	queryPathRe = regexp.MustCompile(`^/v1/query$`)
 	// SELECT count() as cnt FROM {table}
 	countQueryRe = regexp.MustCompile(`(?i)SELECT\s+count\(\)\s+as\s+cnt\s+FROM\s+(\S+)`)
 )
@@ -158,7 +158,7 @@ func main() {
 
 		// Route: Firehose delivery
 		if m := firehosePathRe.FindStringSubmatch(r.URL.Path); m != nil && r.URL.Query().Get("transform") == "firehose" {
-			handleFirehose(w, r, s, *accessKey, m[3])
+			handleFirehose(w, r, s, *accessKey, m[1])
 			return
 		}
 

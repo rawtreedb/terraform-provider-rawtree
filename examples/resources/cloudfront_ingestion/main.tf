@@ -1,3 +1,17 @@
+terraform {
+  required_providers {
+    rawtree = {
+      source  = "rawtreedb/rawtree"
+      version = "~> 0.2"
+    }
+  }
+}
+
+provider "rawtree" {
+  # Uses the RAWTREE_API_KEY and RAWTREE_DATABASE env vars
+  # or rtree CLI config from ~/.config/rtree/config.json
+}
+
 # Basic usage - all fields, 100% sampling
 resource "rawtree_cloudfront_ingestion" "basic" {
   table           = "cloudfront_logs"
@@ -10,8 +24,7 @@ resource "rawtree_cloudfront_ingestion" "full" {
   table           = "cloudfront_logs"
   distribution_id = "E1234567890ABC"
   region          = "us-east-1"
-  organization    = "my-org"
-  project         = "my-project"
+  database        = "security"
 
   sampling_rate      = 50
   buffering_size     = 10

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -15,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/wafv2"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -63,20 +65,16 @@ func (r *WafIngestionResource) ModifyPlan(ctx context.Context, req resource.Modi
 	// Override the computed api_url, endpoint_url, and api_key_hash with values
 	// derived from the current provider config. State reflects the actual AWS
 	// Firehose endpoint (set during Read), so if the provider config has changed,
-	// Terraform will see a diff and trigger an Update.
-	org := r.client.Organization
-	if !plan.Organization.IsNull() && !plan.Organization.IsUnknown() && plan.Organization.ValueString() != "" {
-		org = plan.Organization.ValueString()
-	}
-	project := r.client.Project
-	if !plan.Project.IsNull() && !plan.Project.IsUnknown() && plan.Project.ValueString() != "" {
-		project = plan.Project.ValueString()
-	}
+	// Read database from config: the plan holds the prior state value when
+	// the attribute is not set, and the provider default may have changed.
+	var configDatabase types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("database"), &configDatabase)...)
+	database := r.client.DatabaseOr(configDatabase.ValueString())
+	plan.Database = types.StringValue(database)
 	table := plan.Table.ValueString()
 
 	plan.APIURL = types.StringValue(r.client.APIURL)
-	plan.EndpointURL = types.StringValue(fmt.Sprintf("%s/v1/%s/%s/tables/%s?transform=firehose",
-		r.client.APIURL, org, project, table))
+	plan.EndpointURL = types.StringValue(r.client.TableURL(database, table, url.Values{"transform": {"firehose"}}))
 	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
@@ -96,6 +94,11 @@ func (r *WafIngestionResource) Configure(_ context.Context, req resource.Configu
 		return
 	}
 	r.client = c
+	// The pipeline sends data with the API key; an access token expires and cannot ingest.
+	if c.APIKey == "" {
+		resp.Diagnostics.AddError("Missing RawTree API key",
+			"This resource needs the provider 'api_key' attribute (or RAWTREE_API_KEY). An access token cannot be used for ingestion.")
+	}
 }
 
 func (r *WafIngestionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -112,16 +115,10 @@ func (r *WafIngestionResource) Create(ctx context.Context, req resource.CreateRe
 	bufferingSeconds := int32(plan.BufferingInterval.ValueInt64())
 	s3BackupMode := plan.S3BackupMode.ValueString()
 
-	org := r.client.Organization
-	if !plan.Organization.IsNull() && !plan.Organization.IsUnknown() && plan.Organization.ValueString() != "" {
-		org = plan.Organization.ValueString()
-	}
-	project := r.client.Project
-	if !plan.Project.IsNull() && !plan.Project.IsUnknown() && plan.Project.ValueString() != "" {
-		project = plan.Project.ValueString()
-	}
+	database := r.client.DatabaseOr(plan.Database.ValueString())
 
-	resourceName := util.SanitizeResourceName(fmt.Sprintf("%s-%s-%s", org, project, table))
+	// The API key selects the cluster: the same database and table in two clusters must not share AWS names.
+	resourceName := util.SanitizeResourceName(database+"-"+table, util.HashString(r.client.APIKey))
 
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
@@ -157,8 +154,7 @@ func (r *WafIngestionResource) Create(ctx context.Context, req resource.CreateRe
 
 	// Step 3: Create Firehose delivery stream.
 	firehoseName := fmt.Sprintf("aws-waf-logs-rawtree-%s", resourceName)
-	endpointURL := fmt.Sprintf("%s/v1/%s/%s/tables/%s?transform=firehose",
-		r.client.APIURL, org, project, table)
+	endpointURL := r.client.TableURL(database, table, url.Values{"transform": {"firehose"}})
 
 	cfg := firehoseConfig{
 		Name:             firehoseName,
@@ -199,8 +195,7 @@ func (r *WafIngestionResource) Create(ctx context.Context, req resource.CreateRe
 	plan.APIURL = types.StringValue(r.client.APIURL)
 	plan.EndpointURL = types.StringValue(endpointURL)
 	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
-	plan.Organization = types.StringValue(org)
-	plan.Project = types.StringValue(project)
+	plan.Database = types.StringValue(database)
 	plan.FirehoseARN = types.StringValue(firehoseARN)
 	plan.FirehoseName = types.StringValue(firehoseName)
 	plan.BackupBucketName = types.StringValue(bucketName)
@@ -260,7 +255,7 @@ func (r *WafIngestionResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	// Read actual endpoint URL from the Firehose destination so Terraform can
-	// detect drift (e.g., provider api_url or org/project changed).
+	// detect drift (e.g., provider api_url or database changed).
 	actualEndpointURL := ""
 	actualAPIURL := r.client.APIURL
 	if dests := descOut.DeliveryStreamDescription.Destinations; len(dests) > 0 {
@@ -276,13 +271,6 @@ func (r *WafIngestionResource) Read(ctx context.Context, req resource.ReadReques
 	data.EndpointURL = types.StringValue(actualEndpointURL)
 	// Don't overwrite api_key_hash here -- keep the value from prior state so
 	// ModifyPlan (which sets it to the current provider key) can detect changes.
-	// AWS does not expose the access key in DescribeDeliveryStream.
-	if data.Organization.IsNull() || data.Organization.ValueString() == "" {
-		data.Organization = types.StringValue(r.client.Organization)
-	}
-	if data.Project.IsNull() || data.Project.ValueString() == "" {
-		data.Project = types.StringValue(r.client.Project)
-	}
 
 	resp.Private.SetKey(ctx, "aws_resources", stateJSON)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -307,18 +295,10 @@ func (r *WafIngestionResource) Update(ctx context.Context, req resource.UpdateRe
 		return
 	}
 
-	org := r.client.Organization
-	if !plan.Organization.IsNull() && !plan.Organization.IsUnknown() && plan.Organization.ValueString() != "" {
-		org = plan.Organization.ValueString()
-	}
-	project := r.client.Project
-	if !plan.Project.IsNull() && !plan.Project.IsUnknown() && plan.Project.ValueString() != "" {
-		project = plan.Project.ValueString()
-	}
+	database := r.client.DatabaseOr(plan.Database.ValueString())
 
 	table := plan.Table.ValueString()
-	endpointURL := fmt.Sprintf("%s/v1/%s/%s/tables/%s?transform=firehose",
-		r.client.APIURL, org, project, table)
+	endpointURL := r.client.TableURL(database, table, url.Values{"transform": {"firehose"}})
 
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(state.Region))
 	if err != nil {
@@ -347,8 +327,7 @@ func (r *WafIngestionResource) Update(ctx context.Context, req resource.UpdateRe
 	plan.APIURL = types.StringValue(r.client.APIURL)
 	plan.EndpointURL = types.StringValue(endpointURL)
 	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
-	plan.Organization = types.StringValue(org)
-	plan.Project = types.StringValue(project)
+	plan.Database = types.StringValue(database)
 
 	resp.Private.SetKey(ctx, "aws_resources", stateJSON)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)

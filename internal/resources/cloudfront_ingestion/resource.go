@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -61,14 +63,12 @@ func (r *CloudfrontIngestionResource) ModifyPlan(ctx context.Context, req resour
 		return
 	}
 
-	org := r.client.Organization
-	if !plan.Organization.IsNull() && !plan.Organization.IsUnknown() && plan.Organization.ValueString() != "" {
-		org = plan.Organization.ValueString()
-	}
-	project := r.client.Project
-	if !plan.Project.IsNull() && !plan.Project.IsUnknown() && plan.Project.ValueString() != "" {
-		project = plan.Project.ValueString()
-	}
+	// Read database from config: the plan holds the prior state value when
+	// the attribute is not set, and the provider default may have changed.
+	var configDatabase types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("database"), &configDatabase)...)
+	database := r.client.DatabaseOr(configDatabase.ValueString())
+	plan.Database = types.StringValue(database)
 	table := plan.Table.ValueString()
 
 	fields, fieldDiags := extractFieldsFromList(ctx, plan.Fields)
@@ -78,7 +78,7 @@ func (r *CloudfrontIngestionResource) ModifyPlan(ctx context.Context, req resour
 	}
 
 	plan.APIURL = types.StringValue(r.client.APIURL)
-	plan.EndpointURL = types.StringValue(buildEndpointURL(r.client.APIURL, org, project, table, fields))
+	plan.EndpointURL = types.StringValue(buildEndpointURL(r.client, database, table, fields))
 	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
 
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
@@ -98,6 +98,11 @@ func (r *CloudfrontIngestionResource) Configure(_ context.Context, req resource.
 		return
 	}
 	r.client = c
+	// The pipeline sends data with the API key; an access token expires and cannot ingest.
+	if c.APIKey == "" {
+		resp.Diagnostics.AddError("Missing RawTree API key",
+			"This resource needs the provider 'api_key' attribute (or RAWTREE_API_KEY). An access token cannot be used for ingestion.")
+	}
 }
 
 func (r *CloudfrontIngestionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -121,16 +126,10 @@ func (r *CloudfrontIngestionResource) Create(ctx context.Context, req resource.C
 		return
 	}
 
-	org := r.client.Organization
-	if !plan.Organization.IsNull() && !plan.Organization.IsUnknown() && plan.Organization.ValueString() != "" {
-		org = plan.Organization.ValueString()
-	}
-	project := r.client.Project
-	if !plan.Project.IsNull() && !plan.Project.IsUnknown() && plan.Project.ValueString() != "" {
-		project = plan.Project.ValueString()
-	}
+	database := r.client.DatabaseOr(plan.Database.ValueString())
 
-	resourceName := util.SanitizeResourceName(fmt.Sprintf("%s-%s-%s", org, project, table))
+	// The API key selects the cluster: the same database and table in two clusters must not share AWS names.
+	resourceName := util.SanitizeResourceName(database+"-"+table, util.HashString(r.client.APIKey))
 
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
@@ -199,7 +198,7 @@ func (r *CloudfrontIngestionResource) Create(ctx context.Context, req resource.C
 
 	// Step 7: Create Firehose delivery stream.
 	firehoseName := fmt.Sprintf("rawtree-cf-%s", resourceName)
-	endpointURL := buildEndpointURL(r.client.APIURL, org, project, table, fields)
+	endpointURL := buildEndpointURL(r.client, database, table, fields)
 
 	cfg := firehoseConfig{
 		Name:             firehoseName,
@@ -253,8 +252,7 @@ func (r *CloudfrontIngestionResource) Create(ctx context.Context, req resource.C
 	plan.APIURL = types.StringValue(r.client.APIURL)
 	plan.EndpointURL = types.StringValue(endpointURL)
 	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
-	plan.Organization = types.StringValue(org)
-	plan.Project = types.StringValue(project)
+	plan.Database = types.StringValue(database)
 	plan.KinesisStreamARN = types.StringValue(kinesisStreamARN)
 	plan.KinesisStreamName = types.StringValue(kinesisStreamName)
 	plan.FirehoseARN = types.StringValue(firehoseARN)
@@ -327,12 +325,6 @@ func (r *CloudfrontIngestionResource) Read(ctx context.Context, req resource.Rea
 
 	data.APIURL = types.StringValue(actualAPIURL)
 	data.EndpointURL = types.StringValue(actualEndpointURL)
-	if data.Organization.IsNull() || data.Organization.ValueString() == "" {
-		data.Organization = types.StringValue(r.client.Organization)
-	}
-	if data.Project.IsNull() || data.Project.ValueString() == "" {
-		data.Project = types.StringValue(r.client.Project)
-	}
 
 	resp.Private.SetKey(ctx, "aws_resources", stateJSON)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -357,14 +349,7 @@ func (r *CloudfrontIngestionResource) Update(ctx context.Context, req resource.U
 		return
 	}
 
-	org := r.client.Organization
-	if !plan.Organization.IsNull() && !plan.Organization.IsUnknown() && plan.Organization.ValueString() != "" {
-		org = plan.Organization.ValueString()
-	}
-	project := r.client.Project
-	if !plan.Project.IsNull() && !plan.Project.IsUnknown() && plan.Project.ValueString() != "" {
-		project = plan.Project.ValueString()
-	}
+	database := r.client.DatabaseOr(plan.Database.ValueString())
 
 	table := plan.Table.ValueString()
 	fields, fieldDiags := extractFieldsFromList(ctx, plan.Fields)
@@ -372,7 +357,7 @@ func (r *CloudfrontIngestionResource) Update(ctx context.Context, req resource.U
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	endpointURL := buildEndpointURL(r.client.APIURL, org, project, table, fields)
+	endpointURL := buildEndpointURL(r.client, database, table, fields)
 
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(state.Region))
 	if err != nil {
@@ -409,8 +394,7 @@ func (r *CloudfrontIngestionResource) Update(ctx context.Context, req resource.U
 	plan.APIURL = types.StringValue(r.client.APIURL)
 	plan.EndpointURL = types.StringValue(endpointURL)
 	plan.APIKeyHash = types.StringValue(util.HashString(r.client.APIKey))
-	plan.Organization = types.StringValue(org)
-	plan.Project = types.StringValue(project)
+	plan.Database = types.StringValue(database)
 
 	resp.Private.SetKey(ctx, "aws_resources", stateJSON)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -541,7 +525,9 @@ func extractFieldsFromList(ctx context.Context, fieldList types.List) ([]string,
 	return result, diags
 }
 
-func buildEndpointURL(apiURL, org, project, table string, fields []string) string {
-	return fmt.Sprintf("%s/v1/%s/%s/tables/%s?transform=firehose&columns=%s",
-		apiURL, org, project, table, strings.Join(sortFieldsCanonical(fields), ","))
+func buildEndpointURL(c *client.RawtreeClient, database, table string, fields []string) string {
+	return c.TableURL(database, table, url.Values{
+		"transform": {"firehose"},
+		"columns":   {strings.Join(sortFieldsCanonical(fields), ",")},
+	})
 }

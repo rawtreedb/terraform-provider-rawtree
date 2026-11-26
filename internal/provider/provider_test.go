@@ -38,6 +38,14 @@ func TestProviderHasResources(t *testing.T) {
 		t.Fatalf("failed to get provider schema: %s", err)
 	}
 
+	for _, name := range []string{"rawtree_cloudfront_ingestion"} {
+		if _, ok := resp.ResourceSchemas[name]; !ok {
+			t.Errorf("expected %s resource to be registered", name)
+		}
+	}
+	for _, d := range resp.Diagnostics {
+		t.Errorf("schema diagnostic: %s: %s", d.Summary, d.Detail)
+	}
 	if _, ok := resp.ResourceSchemas["rawtree_s3_ingestion"]; !ok {
 		t.Error("expected rawtree_s3_ingestion resource to be registered")
 	}
@@ -176,4 +184,31 @@ func TestLoadCLIConfig(t *testing.T) {
 			t.Errorf("expected empty token, got %s", result.Token)
 		}
 	})
+}
+
+// State written before RawTree removed projects still has organization and
+// project. The same-version upgrade must drop them instead of failing.
+func TestUpgradeStateDropsOrganizationAndProject(t *testing.T) {
+	server, err := providerserver.NewProtocol6WithError(New("test")())()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := map[string]string{
+		"rawtree_waf_ingestion":        `{"id":"x","table":"t","web_acl_arn":"a","region":"us-east-1","organization":"acme","project":"prod","endpoint_url":"https://api.us-east-1.aws.rawtree.com/v1/acme/prod/tables/t?transform=firehose"}`,
+		"rawtree_cloudfront_ingestion": `{"id":"x","table":"t","distribution_id":"d","region":"us-east-1","organization":"acme","project":"prod"}`,
+		"rawtree_s3_ingestion":         `{"id":"x","table":"t","bucket":"b","format":"json","region":"us-east-1","organization":"acme","project":"prod"}`,
+	}
+	for typeName, raw := range old {
+		resp, err := server.UpgradeResourceState(context.Background(), &tfprotov6.UpgradeResourceStateRequest{
+			TypeName: typeName,
+			Version:  0,
+			RawState: &tfprotov6.RawState{JSON: []byte(raw)},
+		})
+		if err != nil {
+			t.Fatalf("%s: %v", typeName, err)
+		}
+		for _, d := range resp.Diagnostics {
+			t.Errorf("%s: %s: %s", typeName, d.Summary, d.Detail)
+		}
+	}
 }

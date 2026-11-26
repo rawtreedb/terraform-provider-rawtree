@@ -12,7 +12,8 @@ var nonAlphanumericHyphen = regexp.MustCompile(`[^a-z0-9-]`)
 
 // SanitizeResourceName produces an AWS-safe name: lowercase, alphanumeric + hyphens,
 // with a short hash suffix for uniqueness, max 40 chars total.
-func SanitizeResourceName(raw string) string {
+// A salt changes only the hash: use it when the same raw name can exist twice in one AWS account.
+func SanitizeResourceName(raw string, salt ...string) string {
 	name := strings.ToLower(raw)
 	name = strings.ReplaceAll(name, "_", "-")
 	name = nonAlphanumericHyphen.ReplaceAllString(name, "")
@@ -21,7 +22,7 @@ func SanitizeResourceName(raw string) string {
 	}
 	name = strings.Trim(name, "-")
 
-	h := sha256.Sum256([]byte(raw))
+	h := sha256.Sum256([]byte(strings.Join(append([]string{raw}, salt...), "\x00")))
 	hash := hex.EncodeToString(h[:4]) // 8 hex chars
 
 	maxPrefix := 40 - len(hash) - 1 // 1 for the hyphen separator

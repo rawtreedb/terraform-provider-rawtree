@@ -38,9 +38,8 @@ export RAWTREE_TEST_CF_DISTRIBUTION_ID="E23M245BXXXXXX"
 export AWS_REGION="us-east-1"
 
 # Your Rawtree credentials
-export RAWTREE_API_KEY="rw_..."
-export RAWTREE_ORG="my-org"
-export RAWTREE_PROJECT="my-project"
+export RAWTREE_API_KEY="rt_..."
+export RAWTREE_DATABASE="my_database"  # optional, defaults to the API key database
 
 # Run S3 ingestion tests
 TF_ACC=1 go test -v -timeout 30m ./internal/resources/s3_ingestion/
@@ -92,12 +91,12 @@ local development and debugging.
 
 The stub speaks the [Kinesis Data Firehose HTTP endpoint protocol](https://docs.aws.amazon.com/firehose/latest/dev/httpdeliveryrequestresponse.html):
 
-- Receives Firehose deliveries at `POST /v1/{org}/{project}/tables/{table}?transform=firehose`
+- Receives Firehose deliveries at `POST /v1/tables/{table}?transform=firehose`
 - Validates `X-Amz-Firehose-Access-Key` header (optional)
 - Decodes base64-encoded records and stores them in memory keyed by table
 - Handles WAF logs that may contain newline-delimited JSON within a single record
 - Deduplicates by `requestId` (Firehose retries use the same ID)
-- Serves `POST /v1/{org}/{project}/query` for `SELECT count() as cnt FROM <table>` queries
+- Serves `POST /v1/query` for `SELECT count() as cnt FROM <table>` queries
 - Serves `GET /debug/records` to dump all ingested records
 - Serves `GET /healthz` for health checks
 
@@ -112,7 +111,7 @@ go run ./test/firehose-stub/ -port 9876 -access-key "$RAWTREE_API_KEY"
 Then configure the provider to point at the stub:
 
 ```sh
-export RAWTREE_URL=http://localhost:9876
+export RAWTREE_API_URL=http://localhost:9876
 ```
 
 Flags:
@@ -134,13 +133,13 @@ stub via an HTTPS reverse proxy or tunnel (e.g., ngrok, Cloudflare Tunnel).
 curl http://localhost:9876/healthz
 
 # Simulate a Firehose delivery (base64-encode your JSON records)
-curl -X POST 'http://localhost:9876/v1/myorg/myproj/tables/waf_logs?transform=firehose' \
+curl -X POST 'http://localhost:9876/v1/tables/waf_logs?transform=firehose' \
   -H 'Content-Type: application/json' \
-  -H 'X-Amz-Firehose-Access-Key: rw_...' \
+  -H 'X-Amz-Firehose-Access-Key: rt_...' \
   -d '{"requestId":"test-001","timestamp":1700000000000,"records":[{"data":"eyJ0aW1lc3RhbXAiOjEyMzR9"}]}'
 
 # Query the count
-curl -X POST 'http://localhost:9876/v1/myorg/myproj/query' \
+curl -X POST 'http://localhost:9876/v1/query' \
   -H 'Content-Type: application/json' \
   -d '{"sql":"SELECT count() as cnt FROM waf_logs"}'
 

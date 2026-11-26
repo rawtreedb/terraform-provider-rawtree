@@ -1,24 +1,33 @@
 ---
-page_title: "Rawtree Provider"
+page_title: "RawTree Provider"
 subcategory: ""
 description: |-
-  The Rawtree provider enables automated data ingestion from AWS S3 into Rawtree.
+  Ingest AWS data into RawTree.
 ---
 
-# Rawtree Provider
+# RawTree Provider
 
-The Rawtree provider enables automated data ingestion from AWS S3 into [Rawtree](https://rawtree.dev), a schemaless analytical database.
+Use the RawTree provider to build AWS pipelines that ingest data into [RawTree](https://rawtree.com).
 
-## Authentication
+## Credentials
 
-The provider resolves credentials in this order:
+The provider uses a RawTree API key (`rt_...`). The key selects its organization, cluster and default database.
 
-1. Provider configuration block
-2. Environment variables (`RAWTREE_API_KEY`, `RAWTREE_URL`, `RAWTREE_ORG`, `RAWTREE_PROJECT`)
-3. Rawtree CLI config file (`~/.config/rtree/config.json`)
+The provider resolves each value in this order:
+
+1. The provider block
+2. Environment variables: `RAWTREE_API_KEY`, `RAWTREE_API_URL`, `RAWTREE_DATABASE`
+3. The rtree CLI config file (`~/.config/rtree/config.json`): `token`, `url`, `database`
 
 ## Example Usage
 
 {{ tffile "examples/provider/main.tf" }}
 
 {{ .SchemaMarkdown | trimspace }}
+
+## Upgrade from 0.1
+
+- Remove `project` from the provider block and from the ingestion resources. Remove `organization` from the ingestion resources. Set `database` if you do not use the API key's database.
+- Replace `RAWTREE_URL` with `RAWTREE_API_URL`. The old name still works.
+- The default API URL is now `https://api.rawtree.com`.
+- The first `terraform apply` after the upgrade updates each WAF, CloudFront and S3 ingestion pipeline to the new ingest URL (`/v1/tables/{table}`). It does not replace AWS resources.

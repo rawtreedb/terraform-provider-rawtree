@@ -21,7 +21,7 @@ func TestResourceSchema(t *testing.T) {
 		}
 	}
 
-	optionalAttrs := []string{"buffering_size", "buffering_interval", "s3_backup_mode", "organization", "project"}
+	optionalAttrs := []string{"buffering_size", "buffering_interval", "s3_backup_mode", "database"}
 	for _, attr := range optionalAttrs {
 		a, ok := s.Attributes[attr]
 		if !ok {

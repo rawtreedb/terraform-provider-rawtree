@@ -206,15 +206,10 @@ func resourceSchema() schema.Schema {
 				},
 			},
 
-			"organization": schema.StringAttribute{
+			"database": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "The Rawtree organization. Defaults to the provider-level organization.",
-			},
-			"project": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "The Rawtree project. Defaults to the provider-level project.",
+				Description: "The RawTree database. Defaults to the provider database, else the API key's database (stored as an empty string).",
 			},
 
 			"api_url": schema.StringAttribute{

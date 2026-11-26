@@ -61,6 +61,7 @@ try:
     api_key = args["API_KEY"]
     table = args.get("TABLE", "")
     ingest_endpoint = args.get("INGEST_ENDPOINT", "")
+    database = args.get("DATABASE", "")
     concurrency = int(args.get("CONCURRENCY", "10") or "10")
 except Exception as e:
     print(f"FATAL: Failed to parse arguments: {e}")
@@ -121,8 +122,10 @@ def ingest_key(key):
     )
 
     endpoint = ingest_endpoint if ingest_endpoint else f"{api_url}/v1/tables/{table}"
-    params = urllib.parse.urlencode({"url": presigned_url})
-    url = f"{endpoint}?{params}"
+    query = {"url": presigned_url}
+    if database:
+        query["database"] = database
+    url = f"{endpoint}?{urllib.parse.urlencode(query)}"
 
     req = urllib.request.Request(url, method="POST")
     req.add_header("Authorization", f"Bearer {api_key}")

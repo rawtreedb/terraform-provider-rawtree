@@ -71,15 +71,10 @@ func resourceSchema() schema.Schema {
 				},
 			},
 
-			"organization": schema.StringAttribute{
+			"database": schema.StringAttribute{
 				Optional:    true,
 				Computed:    true,
-				Description: "The Rawtree organization. Defaults to the provider-level organization.",
-			},
-			"project": schema.StringAttribute{
-				Optional:    true,
-				Computed:    true,
-				Description: "The Rawtree project. Defaults to the provider-level project.",
+				Description: "The RawTree database. Defaults to the provider database, else the API key's database (stored as an empty string).",
 			},
 
 			"api_url": schema.StringAttribute{
@@ -93,7 +88,7 @@ func resourceSchema() schema.Schema {
 			},
 			"endpoint_url": schema.StringAttribute{
 				Computed:    true,
-				Description: "The full Firehose HTTP endpoint URL (e.g. {api_url}/v1/{org}/{project}/tables/{table}?transform=firehose).",
+				Description: "The full Firehose HTTP endpoint URL (e.g. {api_url}/v1/tables/{table}?database={database}&transform=firehose).",
 			},
 
 			"firehose_arn": schema.StringAttribute{
