@@ -9,7 +9,8 @@ terraform {
 
 provider "rawtree" {}
 
-# Key for an ingestion pipeline: it can only insert into the analytics database.
+# Write-only key for an ingestion pipeline. `database` is the default database
+# of the key. It does not restrict the key to that database.
 resource "rawtree_api_key" "ingest" {
   name       = "firehose-ingest"
   database   = "analytics"

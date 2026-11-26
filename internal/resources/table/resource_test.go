@@ -267,6 +267,25 @@ func TestUpdateRejectsTTLRemoval(t *testing.T) {
 	}
 }
 
+func TestUpdateRejectsEmptySortingKey(t *testing.T) {
+	ctx := context.Background()
+	r, api, s := setup(t, "analytics")
+	state := createTable(t, r, s, newPlan())
+	api.calls = nil
+
+	var m TableModel
+	state.Get(ctx, &m)
+	m.SortingKey = types.StringValue("")
+	plan := tfsdk.Plan{Schema: s, Raw: nullRaw(s)}
+	plan.Set(ctx, &m)
+
+	resp := &resource.UpdateResponse{State: state}
+	r.Update(ctx, resource.UpdateRequest{Plan: plan, State: state}, resp)
+	if !resp.Diagnostics.HasError() || len(api.calls) != 0 {
+		t.Errorf("an empty sorting key must fail before any API call: %v, calls %+v", resp.Diagnostics, api.calls)
+	}
+}
+
 func TestReadRemovesMissingTable(t *testing.T) {
 	ctx := context.Background()
 	r, api, s := setup(t, "analytics")
