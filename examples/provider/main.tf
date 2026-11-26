@@ -7,7 +7,7 @@ terraform {
   }
 }
 
-# The AWS ingestion resources use an API key.
+# Data-plane resources and the AWS ingestion resources use an API key.
 # The key selects its organization, cluster and default database.
 # Environment variables: RAWTREE_API_KEY, RAWTREE_API_URL, RAWTREE_DATABASE.
 # If you logged in with the rtree CLI, the provider reads its config file.
