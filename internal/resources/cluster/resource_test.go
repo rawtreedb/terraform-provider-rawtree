@@ -88,7 +88,7 @@ func newFakeAPI(t *testing.T) (*fakeAPI, *httptest.Server) {
 		case "PATCH /v1/clusters/c-1":
 			item["name"] = "renamed"
 			item["idle_timeout_minutes"] = 0
-			item["status"] = map[string]any{"phase": "ready", "ready": true, "label": "Ready"}
+			item["status"] = map[string]any{"phase": "unknown", "ready": false, "label": "Unknown"}
 			_ = json.NewEncoder(w).Encode(item)
 		case "DELETE /v1/clusters/c-1":
 			f.deleted = true
@@ -257,6 +257,10 @@ func TestUpdateSendsOnlyChangedFields(t *testing.T) {
 	}
 	if m := stateModel(t, resp.State); m.Name.ValueString() != "renamed" || m.IdleTimeoutMinutes.ValueInt64() != 0 {
 		t.Errorf("unexpected state %+v", m)
+	}
+	// The PATCH response reports the status as unknown.
+	if m := stateModel(t, resp.State); !m.Status.Equal(createdState().Status) {
+		t.Errorf("status after update = %s, want %s", m.Status, createdState().Status)
 	}
 }
 

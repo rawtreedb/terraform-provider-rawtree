@@ -58,15 +58,15 @@ resource "rawtree_cluster" "byo_s3" {
 ### Optional
 
 - `max_size` (String) - Maximum autoscaling size per replica as `CPU_CORES:MEMORY_GIB`. Defaults to `min_size`. Changing it forces a new resource.
-- `idle_timeout_minutes` (Number) - Minutes without activity before the cluster pauses; `0` disables idling. Defaults to the API default. Can be changed in place.
+- `idle_timeout_minutes` (Number) - Minutes without activity before the cluster pauses: `0` disables idling, else 15 to 43200 (30 days). Defaults to the API default. Can be changed in place.
 - `deletion_protection` (Boolean) - When `true` (the default), Terraform refuses to delete the cluster. This also blocks a replacement.
-- `s3_storage` (Object) - Customer-owned S3 storage. Omit for RawTree-managed storage. Changing it forces a new resource.
+- `s3_storage` (Object) - Customer-owned S3 storage. Omit for RawTree-managed storage. Requires `external_id`. Changing it forces a new resource.
   - `data_bucket` (String, Required) - Bucket for cluster data.
   - `data_path` (String) - Path prefix in the data bucket. Default `""`.
   - `backups_bucket` (String, Required) - Bucket for backups.
   - `backups_path` (String) - Path prefix in the backups bucket. Default `""`.
   - `role_arn` (String, Required) - IAM role that RawTree assumes to reach the buckets. The API does not return it, so it is not checked for drift. Changing it forces a new resource, except for the first apply after an import.
-- `external_id` (String) - External ID RawTree sends when it assumes `role_arn`. Generated when omitted. Changing it forces a new resource.
+- `external_id` (String) - External ID RawTree sends when it assumes `role_arn`. Required with `s3_storage`, else generated when omitted. Changing it forces a new resource.
 - `resource_tag` (String) - Value of the `rawtree.com/cluster` AWS resource tag. Generated when omitted. Changing it forces a new resource.
 
 ### Read-Only

@@ -33,7 +33,7 @@ resource "rawtree_table" "events" {
 ### Optional
 
 - `database` (String) - Database of the table. Defaults to the provider `database`, else the API key's database. Changing this forces a new resource.
-- `sorting_key` (String) - Comma-separated SQL sorting expressions. Empty lets the table pick a key per part. Existing parts keep the previous key until they are merged.
+- `sorting_key` (String) - Comma-separated SQL sorting expressions. Empty lets the table pick a key per part; the API accepts an empty key only when the table is created. Existing parts keep the previous key until they are merged.
 - `ttl` (String) - Row-deletion TTL expression, optionally followed by `DELETE WHERE <condition>`. The API cannot remove a TTL: after it is set, you can change it but not unset it.
 - `settings_json` (String) - Engine settings as a JSON object of booleans, numbers or strings. Key order and whitespace are ignored.
 - `replacing_enable` (Boolean) - Replace rows with the same sorting key on merge. Null when the table engine does not support it.
