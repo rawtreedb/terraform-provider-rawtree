@@ -144,7 +144,7 @@ func TestModifyPlanDrift(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			r := &CloudfrontIngestionResource{client: client.New(tt.providerKey, tt.providerURL, "", tt.providerDB, "")}
+			r := &CloudfrontIngestionResource{client: client.New(tt.providerKey, "", tt.providerURL, "", "", tt.providerDB, "")}
 			s := resourceSchema()
 			// Config only matters for database; other values are ignored by ModifyPlan.
 			config := testValues(url, "", tt.configDB, "")
@@ -182,7 +182,7 @@ func TestModifyPlanDrift(t *testing.T) {
 func TestModifyPlan_SkipsOnCreateAndDestroy(t *testing.T) {
 	t.Parallel()
 
-	r := &CloudfrontIngestionResource{client: client.New("k", "https://api.rawtree.com", "", "", "")}
+	r := &CloudfrontIngestionResource{client: client.New("k", "", "https://api.rawtree.com", "", "", "", "")}
 	s := resourceSchema()
 	null := tftypes.NewValue(testSchemaType(), nil)
 	vals := testValues("https://api.rawtree.com", util.HashString("k"), nil, "x")

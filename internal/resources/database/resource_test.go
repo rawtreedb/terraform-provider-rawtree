@@ -71,7 +71,7 @@ func setup(t *testing.T) (*DatabaseResource, *fakeAPI, fwschema.Schema) {
 	api := &fakeAPI{}
 	srv := httptest.NewServer(api.handler(t))
 	t.Cleanup(srv.Close)
-	return &DatabaseResource{client: client.New("rt_test", srv.URL, "", "", "")}, api, resourceSchema()
+	return &DatabaseResource{client: client.New("rt_test", "", srv.URL, "", "", "", "")}, api, resourceSchema()
 }
 
 func nullRaw(s fwschema.Schema) tftypes.Value {

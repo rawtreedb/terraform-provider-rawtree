@@ -38,7 +38,7 @@ func TestProviderHasResources(t *testing.T) {
 		t.Fatalf("failed to get provider schema: %s", err)
 	}
 
-	for _, name := range []string{"rawtree_api_key", "rawtree_database", "rawtree_table", "rawtree_workflow", "rawtree_cloudfront_ingestion"} {
+	for _, name := range []string{"rawtree_api_key", "rawtree_cluster", "rawtree_database", "rawtree_table", "rawtree_workflow", "rawtree_cloudfront_ingestion"} {
 		if _, ok := resp.ResourceSchemas[name]; !ok {
 			t.Errorf("expected %s resource to be registered", name)
 		}
@@ -210,5 +210,15 @@ func TestUpgradeStateDropsOrganizationAndProject(t *testing.T) {
 		for _, d := range resp.Diagnostics {
 			t.Errorf("%s: %s: %s", typeName, d.Summary, d.Detail)
 		}
+	}
+}
+
+func TestSplitCLIToken(t *testing.T) {
+	if k, a := splitCLIToken("rt_abc"); k != "rt_abc" || a != "" {
+		t.Errorf("API key: %q %q", k, a)
+	}
+	// A user JWT from `rtree login` must not be sent as an API key.
+	if k, a := splitCLIToken("eyJhbGciOi.x.y"); k != "" || a != "eyJhbGciOi.x.y" {
+		t.Errorf("user token: %q %q", k, a)
 	}
 }

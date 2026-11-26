@@ -45,7 +45,7 @@ func TestResolveConfigDefaultsAndProviderValues(t *testing.T) {
 	model := baseModel()
 	model.DatabaseURLSecretARN = types.StringValue("arn:aws:secretsmanager:us-east-1:123456789012:secret:db")
 
-	cfg, diags := resolveConfig(context.Background(), &model, client.New("rt_test", "https://api.example.com", "org", "", "project"))
+	cfg, diags := resolveConfig(context.Background(), &model, client.New("rt_test", "", "https://api.example.com", "org", "", "", "project"))
 	if diags.HasError() {
 		t.Fatalf("unexpected diagnostics: %s", diags.Errors())
 	}
@@ -112,7 +112,7 @@ func TestResolveConfigValidation(t *testing.T) {
 			t.Parallel()
 			model := baseModel()
 			tt.mutate(&model)
-			_, diags := resolveConfig(context.Background(), &model, client.New("rt_test", "https://api.example.com", "org", "", "project"))
+			_, diags := resolveConfig(context.Background(), &model, client.New("rt_test", "", "https://api.example.com", "org", "", "", "project"))
 			if !diags.HasError() {
 				t.Fatal("expected diagnostics error")
 			}

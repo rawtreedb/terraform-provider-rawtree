@@ -62,7 +62,7 @@ func newTest(t *testing.T, responses ...fakeResponse) (*WorkflowResource, *fakeA
 	f := &fakeAPI{t: t, responses: responses}
 	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
-	return &WorkflowResource{client: client.New("rt_test", srv.URL, "", "analytics", "")}, f
+	return &WorkflowResource{client: client.New("rt_test", "", srv.URL, "", "", "analytics", "")}, f
 }
 
 func emptyState() tfsdk.State {
