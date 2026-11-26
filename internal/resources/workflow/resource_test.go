@@ -237,6 +237,22 @@ func decode(s string) (apiWorkflow, error) {
 	return w, json.Unmarshal([]byte(s), &w)
 }
 
+// The API can store the workflow and then fail the call. The provider must
+// keep that workflow in state, or the retry fails on the name.
+func TestCreateKeepsWorkflowWhenScheduleIsNotConfirmed(t *testing.T) {
+	r, f := newTest(t,
+		fakeResponse{503, `{"error":"service_unavailable","message":"Could not confirm workflow creation.","hint":"Inspect workflow wf1."}`},
+		fakeResponse{200, `{"workflows":[` + createdItem + `]}`})
+	resp := resource.CreateResponse{State: emptyState()}
+	r.Create(context.Background(), resource.CreateRequest{Plan: toPlan(t, plannedModel())}, &resp)
+	if resp.Diagnostics.HasError() || resp.Diagnostics.WarningsCount() != 1 {
+		t.Fatalf("want one warning and no error: %v", resp.Diagnostics)
+	}
+	if len(f.calls) != 2 || f.calls[1].Method != "GET" || fromState(t, resp.State).ID.ValueString() != "wf1" {
+		t.Errorf("calls = %+v, id = %s", f.calls, fromState(t, resp.State).ID)
+	}
+}
+
 func TestUpdate(t *testing.T) {
 	prior := createdState(t)
 	plan := createdState(t)
