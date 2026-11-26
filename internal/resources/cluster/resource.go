@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/objectvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -184,9 +186,10 @@ func resourceSchema() schema.Schema {
 				PlanModifiers: replaceKeep,
 			},
 			"idle_timeout_minutes": schema.Int64Attribute{
-				Description:   "Minutes without activity before the cluster pauses automatically; 0 disables idling. Defaults to the API default. Can be changed in place.",
+				Description:   "Minutes without activity before the cluster pauses automatically: 0 disables idling, else 15 to 43200 (30 days). Defaults to the API default. Can be changed in place.",
 				Optional:      true,
 				Computed:      true,
+				Validators:    []validator.Int64{int64validator.Any(int64validator.OneOf(0), int64validator.Between(15, 43200))},
 				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"deletion_protection": schema.BoolAttribute{
@@ -196,8 +199,10 @@ func resourceSchema() schema.Schema {
 				Default:     booldefault.StaticBool(true),
 			},
 			"s3_storage": schema.SingleNestedAttribute{
-				Description: "Customer-owned S3 storage. Omit for RawTree-managed storage. A change to the buckets or paths forces a new resource.",
+				Description: "Customer-owned S3 storage. Omit for RawTree-managed storage. Requires external_id. A change to the buckets or paths forces a new resource.",
 				Optional:    true,
+				// The API does not generate an external ID for customer storage.
+				Validators: []validator.Object{objectvalidator.AlsoRequires(path.MatchRoot("external_id"))},
 				// Nested modifiers do not run when the block is added or removed.
 				PlanModifiers: []planmodifier.Object{objectplanmodifier.RequiresReplaceIf(
 					func(_ context.Context, req planmodifier.ObjectRequest, resp *objectplanmodifier.RequiresReplaceIfFuncResponse) {
@@ -240,7 +245,7 @@ func resourceSchema() schema.Schema {
 				},
 			},
 			"external_id": schema.StringAttribute{
-				Description:   "External ID that RawTree sends when it assumes the S3 storage role. Generated when omitted.",
+				Description:   "External ID that RawTree sends when it assumes the S3 storage role. Required with s3_storage, else generated when omitted.",
 				Optional:      true,
 				Computed:      true,
 				PlanModifiers: replaceKeep,
@@ -470,6 +475,10 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	// Drop the cached route of the old name, so resources that select the cluster by name resolve it again.
 	r.client.ForgetCluster(state.ID.ValueString(), state.Name.ValueString())
 	applyItem(&plan, item)
+	if len(body) > 0 {
+		// The PATCH response has no status snapshot: keep the last values that were read.
+		plan.Status, plan.RawtreeVersion = state.Status, state.RawtreeVersion
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
