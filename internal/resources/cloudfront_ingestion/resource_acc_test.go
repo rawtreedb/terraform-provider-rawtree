@@ -490,6 +490,18 @@ func testAccE2EGenerateAndValidate(tableName string, numRequests int) resource.T
 		fmt.Printf("[E2E] Realtime log config ARN: %s\n", ingestionRS.Primary.Attributes["realtime_log_config_arn"])
 		fmt.Printf("[E2E] Target table: %s\n", tableName)
 
+		// The provider attaches the log config without a wait. The edge does not
+		// log requests that arrive before that deployment is complete.
+		ctx := context.Background()
+		awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(testRegion))
+		if err != nil {
+			return fmt.Errorf("loading AWS config: %w", err)
+		}
+		waiter := awscf.NewDistributionDeployedWaiter(awscf.NewFromConfig(awsCfg))
+		if err := waiter.Wait(ctx, &awscf.GetDistributionInput{Id: aws.String(rs.Primary.ID)}, 15*time.Minute); err != nil {
+			return fmt.Errorf("waiting for the distribution deployment: %w", err)
+		}
+
 		if err := generateCloudFrontTraffic(domain, numRequests); err != nil {
 			return fmt.Errorf("generating CloudFront traffic: %w", err)
 		}
