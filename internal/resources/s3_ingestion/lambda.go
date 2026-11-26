@@ -6,6 +6,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
@@ -82,6 +83,11 @@ func updateLambdaCode(ctx context.Context, client *lambda.Client, functionName s
 	})
 	if err != nil {
 		return fmt.Errorf("updating Lambda function code: %w", err)
+	}
+	// Lambda rejects the next configuration call with a 409 while this update is in progress.
+	waiter := lambda.NewFunctionUpdatedV2Waiter(client)
+	if err := waiter.Wait(ctx, &lambda.GetFunctionInput{FunctionName: aws.String(functionName)}, 2*time.Minute); err != nil {
+		return fmt.Errorf("waiting for the Lambda function code update: %w", err)
 	}
 	return nil
 }
