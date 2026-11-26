@@ -33,11 +33,11 @@ output "ingest_token" {
 
 ### Optional
 
-- `database` (String) - Default database stored on the key. Defaults to the provider `database`, else `default`.
+- `database` (String) - Default database stored on the key. It does not restrict the key to that database. Defaults to the provider `database`, else `default`.
 - `permission` (String) - One of `admin`, `read_write`, `write_only`, `read_only`. Exactly one of `permission` and `database_roles` is required.
 - `database_roles` (Set of String) - Existing ClickHouse roles the key acts with. Requires administrator access. These keys can run queries and insert into existing tables, but have no RawTree management permissions.
 - `expires_at` (String) - Expiration instant in RFC 3339 format. Omit for a key that never expires.
-- `principal_type` (String) - Identity the key acts as: `user` or `service_account`. Defaults to the caller. Set together with `principal_id`. Assigning a service account requires organization admin access.
+- `principal_type` (String) - Identity the key acts as: `user` or `service_account`. Defaults to the caller. Set together with `principal_id`. With `user`, the API accepts only the ID of the caller. A call with an API key cannot select a different principal. Assigning a service account requires organization admin access.
 - `principal_id` (String) - UUID of the user or service account.
 
 ### Read-Only
