@@ -1,15 +1,18 @@
 # Terraform Provider for RawTree
 
-Use this provider to build AWS pipelines that ingest data into [RawTree](https://rawtree.com).
+Use this provider to manage [RawTree](https://rawtree.com) databases, tables and API keys, and to build AWS pipelines that ingest data into RawTree.
 
 ## Resources
 
-| Resource | Description |
-|----------|-------------|
-| [`rawtree_s3_ingestion`](docs/resources/s3_ingestion.md) | Batch + streaming ingestion from S3 via Glue, Lambda, and EventBridge |
-| [`rawtree_supabase_cdc_ingestion`](docs/resources/supabase_cdc_ingestion.md) | Supabase Postgres CDC ingestion via ECS Fargate |
-| [`rawtree_waf_ingestion`](docs/resources/waf_ingestion.md) | Real-time AWS WAF log streaming via Kinesis Data Firehose |
-| [`rawtree_cloudfront_ingestion`](docs/resources/cloudfront_ingestion.md) | Real-time CloudFront access log streaming via Kinesis and Firehose |
+| Resource | Description | Credential |
+|----------|-------------|------------|
+| [`rawtree_database`](docs/resources/database.md) | Database, optionally on your own S3 bucket | API key |
+| [`rawtree_table`](docs/resources/table.md) | Table with sorting key, TTL and settings | API key |
+| [`rawtree_api_key`](docs/resources/api_key.md) | API key with a permission level or database roles | API key |
+| [`rawtree_s3_ingestion`](docs/resources/s3_ingestion.md) | Batch + streaming ingestion from S3 via Glue, Lambda, and EventBridge | API key |
+| [`rawtree_supabase_cdc_ingestion`](docs/resources/supabase_cdc_ingestion.md) | Supabase Postgres CDC ingestion via ECS Fargate | API key |
+| [`rawtree_waf_ingestion`](docs/resources/waf_ingestion.md) | Real-time AWS WAF log streaming via Kinesis Data Firehose | API key |
+| [`rawtree_cloudfront_ingestion`](docs/resources/cloudfront_ingestion.md) | Real-time CloudFront access log streaming via Kinesis and Firehose | API key |
 
 ## Features
 
@@ -45,7 +48,7 @@ Use this provider to build AWS pipelines that ingest data into [RawTree](https:/
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
 - [Go](https://golang.org/doc/install) >= 1.26 (to build the provider)
-- AWS credentials with the [required permissions](#required-aws-permissions)
+- AWS credentials with the [required permissions](#required-aws-permissions) (ingestion resources only)
 - A [RawTree](https://rawtree.com) account with an API key (`rt_...`)
 
 ## Installation
@@ -63,7 +66,7 @@ terraform {
 
 ## Authentication
 
-The provider uses a RawTree API key (`rt_...`). The key selects its organization, cluster and default database.
+The provider uses a RawTree API key (`rt_...`). The key selects its organization, cluster and default database. Changes to databases and API keys need an `admin` key.
 
 The provider resolves each value in this order:
 

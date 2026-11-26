@@ -2,12 +2,12 @@
 page_title: "RawTree Provider"
 subcategory: ""
 description: |-
-  Ingest AWS data into RawTree.
+  Manage RawTree databases, tables and API keys, and ingest AWS data into RawTree.
 ---
 
 # RawTree Provider
 
-Use the RawTree provider to build AWS pipelines that ingest data into [RawTree](https://rawtree.com).
+Use the RawTree provider to manage [RawTree](https://rawtree.com) resources and to build AWS pipelines that ingest data into RawTree.
 
 ## Credentials
 
@@ -31,7 +31,7 @@ terraform {
   }
 }
 
-# The AWS ingestion resources use an API key.
+# Data-plane resources and the AWS ingestion resources use an API key.
 # The key selects its organization, cluster and default database.
 # Environment variables: RAWTREE_API_KEY, RAWTREE_API_URL, RAWTREE_DATABASE.
 # If you logged in with the rtree CLI, the provider reads its config file.
@@ -53,7 +53,7 @@ variable "rawtree_api_key" {
 - `api_key` (String, Sensitive) - RawTree API key (`rt_...`). Required by the AWS ingestion resources. Can also be set via `RAWTREE_API_KEY`.
 - `api_url` (String) - RawTree API URL. Defaults to `https://api.rawtree.com`. Can also be set via `RAWTREE_API_URL`.
 - `organization` (String) - Organization name. Only `rawtree_supabase_cdc_ingestion` reads this value. Can also be set via `RAWTREE_ORG`.
-- `database` (String) - Default database for ingestion. Defaults to the API key's database. Can also be set via `RAWTREE_DATABASE`.
+- `database` (String) - Default database for tables and ingestion. Defaults to the API key's database. Can also be set via `RAWTREE_DATABASE`.
 - `project` (String, Deprecated) - RawTree no longer has projects. Only `rawtree_supabase_cdc_ingestion` reads this value. Can also be set via `RAWTREE_PROJECT`.
 
 ## Upgrade from 0.1

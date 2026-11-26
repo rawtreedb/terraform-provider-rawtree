@@ -1,7 +1,12 @@
 package client
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -11,7 +16,8 @@ import (
 // RawtreeClient is the API client shared between provider and resources.
 //
 // The API key (rt_...) is bound to one organization, cluster and default
-// database. It is the credential that AWS ingestion pipelines send data with.
+// database. It can manage databases, tables, API keys and workflows, and it is
+// the credential that AWS ingestion pipelines send data with.
 type RawtreeClient struct {
 	APIKey       string
 	APIURL       string
@@ -21,6 +27,39 @@ type RawtreeClient struct {
 	// to the supabase-etl worker image unchanged.
 	Project    string
 	HTTPClient *http.Client
+}
+
+// APIError is a non-2xx response from the RawTree API.
+type APIError struct {
+	Status  int
+	Code    string `json:"error"`
+	Message string `json:"message"`
+	Hint    string `json:"hint"`
+	Body    string `json:"-"`
+}
+
+func (e *APIError) Error() string {
+	msg := e.Message
+	if msg == "" {
+		msg = e.Body
+	}
+	if e.Hint != "" {
+		msg += " (" + e.Hint + ")"
+	}
+	return fmt.Sprintf("rawtree API returned %d: %s", e.Status, msg)
+}
+
+// IsNotFound reports whether err is a 404 from the RawTree API.
+func IsNotFound(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound
+}
+
+// IsAPIError reports whether err is an API response with this status and message.
+// Some endpoints return the same status for different missing objects.
+func IsAPIError(err error, status int, message string) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.Status == status && apiErr.Message == message
 }
 
 // New creates a new RawtreeClient.
@@ -59,4 +98,56 @@ func (c *RawtreeClient) TableURL(database, table string, extra url.Values) strin
 		u += "?" + q.Encode()
 	}
 	return u
+}
+
+// Data calls a data-plane endpoint (databases, tables, API keys, workflows)
+// with the API key.
+func (c *RawtreeClient) Data(ctx context.Context, method, path string, query url.Values, body, out any) error {
+	return c.do(ctx, method, path, query, body, out)
+}
+
+func (c *RawtreeClient) do(ctx context.Context, method, path string, query url.Values, body, out any) error {
+	u := c.APIURL + path
+	if len(query) > 0 {
+		u += "?" + query.Encode()
+	}
+	var reader io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		reader = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, reader)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "terraform-provider-rawtree")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("%s %s: %w", method, path, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode >= 300 {
+		apiErr := &APIError{Status: resp.StatusCode, Body: strings.TrimSpace(string(data))}
+		_ = json.Unmarshal(data, apiErr)
+		return fmt.Errorf("%s %s: %w", method, path, apiErr)
+	}
+	if out == nil || len(bytes.TrimSpace(data)) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(data, out); err != nil {
+		return fmt.Errorf("%s %s: decode response: %w", method, path, err)
+	}
+	return nil
 }
