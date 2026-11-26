@@ -21,6 +21,7 @@ import (
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/supabase_cdc_ingestion"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/table"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/waf_ingestion"
+	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/workflow"
 )
 
 const (
@@ -67,7 +68,7 @@ func (p *RawtreeProvider) Metadata(_ context.Context, _ provider.MetadataRequest
 
 func (p *RawtreeProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "The RawTree provider manages RawTree databases, tables and API keys, " +
+		Description: "The RawTree provider manages RawTree databases, tables, API keys and workflows, " +
 			"and builds AWS pipelines that ingest S3, WAF, CloudFront and Supabase data into RawTree.",
 		Attributes: map[string]schema.Attribute{
 			"api_key": schema.StringAttribute{
@@ -86,7 +87,7 @@ func (p *RawtreeProvider) Schema(_ context.Context, _ provider.SchemaRequest, re
 			},
 			"database": schema.StringAttribute{
 				Optional:    true,
-				Description: "Default RawTree database for tables and ingestion. Defaults to the API key's database. Can also be set via RAWTREE_DATABASE.",
+				Description: "Default RawTree database for tables, workflows and ingestion. Defaults to the API key's database. Can also be set via RAWTREE_DATABASE.",
 			},
 			"project": schema.StringAttribute{
 				Optional:           true,
@@ -136,6 +137,7 @@ func (p *RawtreeProvider) Resources(_ context.Context) []func() resource.Resourc
 		api_key.NewResource,
 		database.NewResource,
 		table.NewResource,
+		workflow.NewResource,
 		cloudfront_ingestion.NewResource,
 		s3_ingestion.NewResource,
 		supabase_cdc_ingestion.NewResource,
