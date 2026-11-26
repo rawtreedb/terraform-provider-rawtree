@@ -2,30 +2,21 @@ terraform {
   required_providers {
     rawtree = {
       source  = "rawtreedb/rawtree"
-      version = "~> 0.1"
+      version = "~> 0.2"
     }
   }
 }
 
-# Authentication can be configured here or via environment variables:
-#   RAWTREE_API_KEY, RAWTREE_URL, RAWTREE_ORG, RAWTREE_PROJECT
-#
-# If you've logged in with the rtree CLI, credentials are auto-detected.
+# The AWS ingestion resources use an API key.
+# The key selects its organization, cluster and default database.
+# Environment variables: RAWTREE_API_KEY, RAWTREE_API_URL, RAWTREE_DATABASE.
+# If you logged in with the rtree CLI, the provider reads its config file.
 provider "rawtree" {
-  api_key      = var.rawtree_api_key
-  organization = var.rawtree_org
-  project      = var.rawtree_project
+  api_key  = var.rawtree_api_key
+  database = "analytics" # optional, defaults to the API key's database
 }
 
 variable "rawtree_api_key" {
   type      = string
   sensitive = true
-}
-
-variable "rawtree_org" {
-  type = string
-}
-
-variable "rawtree_project" {
-  type = string
 }

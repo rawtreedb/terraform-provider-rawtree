@@ -23,7 +23,7 @@ func TestResourceSchema(t *testing.T) {
 	}
 
 	// Verify optional+computed attributes (resource override or provider default).
-	optionalComputedAttrs := []string{"organization", "project"}
+	optionalComputedAttrs := []string{"database"}
 	for _, attr := range optionalComputedAttrs {
 		a, ok := schema.Attributes[attr]
 		if !ok {

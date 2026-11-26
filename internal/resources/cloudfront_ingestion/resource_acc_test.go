@@ -35,12 +35,6 @@ func testAccPreCheck(t *testing.T) {
 	if v := os.Getenv("RAWTREE_API_KEY"); v == "" {
 		t.Fatal("RAWTREE_API_KEY must be set for acceptance tests")
 	}
-	if v := os.Getenv("RAWTREE_ORG"); v == "" {
-		t.Fatal("RAWTREE_ORG must be set for acceptance tests")
-	}
-	if v := os.Getenv("RAWTREE_PROJECT"); v == "" {
-		t.Fatal("RAWTREE_PROJECT must be set for acceptance tests")
-	}
 	if v := os.Getenv("RAWTREE_TEST_CF_DISTRIBUTION_ID"); v == "" {
 		t.Fatal("RAWTREE_TEST_CF_DISTRIBUTION_ID must be set for acceptance tests (an existing CloudFront distribution ID)")
 	}
@@ -444,12 +438,6 @@ func testAccPreCheckE2E(t *testing.T) {
 	if v := os.Getenv("RAWTREE_API_KEY"); v == "" {
 		t.Fatal("RAWTREE_API_KEY must be set for acceptance tests")
 	}
-	if v := os.Getenv("RAWTREE_ORG"); v == "" {
-		t.Fatal("RAWTREE_ORG must be set for acceptance tests")
-	}
-	if v := os.Getenv("RAWTREE_PROJECT"); v == "" {
-		t.Fatal("RAWTREE_PROJECT must be set for acceptance tests")
-	}
 }
 
 func TestAccCloudfrontIngestion_endToEndData(t *testing.T) {
@@ -502,6 +490,18 @@ func testAccE2EGenerateAndValidate(tableName string, numRequests int) resource.T
 		fmt.Printf("[E2E] Realtime log config ARN: %s\n", ingestionRS.Primary.Attributes["realtime_log_config_arn"])
 		fmt.Printf("[E2E] Target table: %s\n", tableName)
 
+		// The provider attaches the log config without a wait. The edge does not
+		// log requests that arrive before that deployment is complete.
+		ctx := context.Background()
+		awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(testRegion))
+		if err != nil {
+			return fmt.Errorf("loading AWS config: %w", err)
+		}
+		waiter := awscf.NewDistributionDeployedWaiter(awscf.NewFromConfig(awsCfg))
+		if err := waiter.Wait(ctx, &awscf.GetDistributionInput{Id: aws.String(rs.Primary.ID)}, 15*time.Minute); err != nil {
+			return fmt.Errorf("waiting for the distribution deployment: %w", err)
+		}
+
 		if err := generateCloudFrontTraffic(domain, numRequests); err != nil {
 			return fmt.Errorf("generating CloudFront traffic: %w", err)
 		}
@@ -538,16 +538,14 @@ func generateCloudFrontTraffic(domain string, numRequests int) error {
 }
 
 func testAccWaitForRawtreeData(tableName string, minRows int, timeout time.Duration) error {
-	apiURL := os.Getenv("RAWTREE_URL")
+	apiURL := os.Getenv("RAWTREE_API_URL")
 	if apiURL == "" {
-		apiURL = "https://api.us-east-1.aws.rawtree.dev"
+		apiURL = "https://api.rawtree.com"
 	}
 	apiKey := os.Getenv("RAWTREE_API_KEY")
-	org := os.Getenv("RAWTREE_ORG")
-	project := os.Getenv("RAWTREE_PROJECT")
 
 	deadline := time.Now().Add(timeout)
-	queryURL := fmt.Sprintf("%s/v1/%s/%s/query", apiURL, org, project)
+	queryURL := apiURL + "/v1/query?database=" + os.Getenv("RAWTREE_DATABASE")
 	query := fmt.Sprintf(`SELECT count() as cnt FROM %s`, tableName)
 	body := fmt.Sprintf(`{"sql":%q}`, query)
 

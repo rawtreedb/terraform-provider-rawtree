@@ -41,9 +41,8 @@ cd /path/to/terraform-provider-rawtree
 go build -o . .
 
 # 2. Set Rawtree credentials (provider reads these from env)
-export RAWTREE_API_KEY="rw_..."
-export RAWTREE_ORG="your-org"
-export RAWTREE_PROJECT="your-project"
+export RAWTREE_API_KEY="rt_..."
+export RAWTREE_DATABASE="my_database"  # optional, defaults to the API key database
 
 # 3. Bootstrap the lab (downloads aws + random providers)
 cd test/lab

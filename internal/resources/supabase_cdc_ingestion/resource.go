@@ -56,6 +56,11 @@ func (r *SupabaseCDCIngestionResource) Configure(_ context.Context, req resource
 		return
 	}
 	r.client = c
+	// The pipeline sends data with the API key; an access token expires and cannot ingest.
+	if c.APIKey == "" {
+		resp.Diagnostics.AddError("Missing RawTree API key",
+			"This resource needs the provider 'api_key' attribute (or RAWTREE_API_KEY). An access token cannot be used for ingestion.")
+	}
 }
 
 func (r *SupabaseCDCIngestionResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {

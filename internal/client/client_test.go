@@ -1,27 +1,17 @@
 package client
 
 import (
+	"net/url"
 	"testing"
 )
 
-func TestNew(t *testing.T) {
-	t.Parallel()
-
-	c := New("rw_testkey", "https://api.test.rawtree.com", "myorg", "myproject")
-
-	if c.APIKey != "rw_testkey" {
-		t.Errorf("expected API key rw_testkey, got %s", c.APIKey)
+func TestTableURL(t *testing.T) {
+	c := New("rt_x", "https://api.rawtree.com/", "", "", "")
+	if got := c.TableURL("", "events", nil); got != "https://api.rawtree.com/v1/tables/events" {
+		t.Errorf("no database: %s", got)
 	}
-	if c.APIURL != "https://api.test.rawtree.com" {
-		t.Errorf("expected API URL https://api.test.rawtree.com, got %s", c.APIURL)
-	}
-	if c.Organization != "myorg" {
-		t.Errorf("expected org myorg, got %s", c.Organization)
-	}
-	if c.Project != "myproject" {
-		t.Errorf("expected project myproject, got %s", c.Project)
-	}
-	if c.HTTPClient == nil {
-		t.Error("expected HTTP client to be initialized")
+	got := c.TableURL("analytics", "waf logs", url.Values{"transform": {"firehose"}})
+	if got != "https://api.rawtree.com/v1/tables/waf%20logs?database=analytics&transform=firehose" {
+		t.Errorf("with database: %s", got)
 	}
 }

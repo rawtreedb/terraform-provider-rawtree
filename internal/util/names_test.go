@@ -137,3 +137,11 @@ func TestHashString(t *testing.T) {
 		t.Errorf("different inputs produced same hash")
 	}
 }
+
+func TestSanitizeResourceNameSalt(t *testing.T) {
+	t.Parallel()
+	plain := SanitizeResourceName("analytics-events")
+	if a, b := SanitizeResourceName("analytics-events", "key-a"), SanitizeResourceName("analytics-events", "key-b"); a == b || a == plain || len(a) > 40 {
+		t.Errorf("salt must change the name: %s %s %s", plain, a, b)
+	}
+}

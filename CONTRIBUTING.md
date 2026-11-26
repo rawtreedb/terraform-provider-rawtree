@@ -92,10 +92,9 @@ Each resource follows the same pattern: `resource.go` (CRUD), `schema.go` (schem
 Acceptance tests create real AWS resources and require credentials + a Rawtree API key:
 
 ```sh
-export RAWTREE_API_KEY=rw_...
-export RAWTREE_URL=https://api.us-east-1.aws.rawtree.com
-export RAWTREE_ORG=your-org
-export RAWTREE_PROJECT=your-project
+export RAWTREE_API_KEY=rt_...
+export RAWTREE_API_URL=https://api.rawtree.com
+export RAWTREE_DATABASE=my_database  # optional, defaults to the API key database
 make testacc
 ```
 

@@ -30,6 +30,7 @@ FORMAT = os.environ.get("FORMAT", "")
 FILE_PATTERN = os.environ.get("FILE_PATTERN", "")
 PREFIX = os.environ.get("PREFIX", "")
 INGEST_ENDPOINT = os.environ.get("INGEST_ENDPOINT", "")
+DATABASE = os.environ.get("DATABASE", "")
 
 # Compile regex once (cold start).
 PATTERN = re.compile(FILE_PATTERN) if FILE_PATTERN else None
@@ -79,8 +80,10 @@ def handler(event, context):
 
     # Send to Rawtree API.
     endpoint = INGEST_ENDPOINT if INGEST_ENDPOINT else f"{API_URL}/v1/tables/{TABLE}"
-    params = urllib.parse.urlencode({"url": presigned_url})
-    url = f"{endpoint}?{params}"
+    query = {"url": presigned_url}
+    if DATABASE:
+        query["database"] = DATABASE
+    url = f"{endpoint}?{urllib.parse.urlencode(query)}"
 
     req = urllib.request.Request(url, method="POST")
     req.add_header("Authorization", f"Bearer {API_KEY}")
