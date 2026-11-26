@@ -1,6 +1,6 @@
 # Terraform Provider for RawTree
 
-Use this provider to manage [RawTree](https://rawtree.com) databases, tables, API keys, workflows, clusters and connectors, and to build AWS pipelines that ingest data into RawTree.
+Use this provider to manage [RawTree](https://rawtree.com) databases, tables, API keys, workflows, clusters, connectors and workload identity, and to build AWS pipelines that ingest data into RawTree.
 
 ## Resources
 
@@ -12,6 +12,9 @@ Use this provider to manage [RawTree](https://rawtree.com) databases, tables, AP
 | [`rawtree_workflow`](docs/resources/workflow.md) | Scheduled SQL query with table, HTTP and Slack sinks | API key |
 | [`rawtree_cluster`](docs/resources/cluster.md) | Cluster in an organization region | Access token (interactive use only) |
 | [`rawtree_connector`](docs/resources/connector.md) | Kafka, Postgres or NATS connector | Access token (interactive use only) |
+| [`rawtree_service_account`](docs/resources/service_account.md) | Organization service account | Access token (interactive use only) |
+| [`rawtree_federation_issuer`](docs/resources/federation_issuer.md) | Trusted OIDC issuer for workload federation | Access token (interactive use only) |
+| [`rawtree_federation_rule`](docs/resources/federation_rule.md) | Rule that maps an external identity to a principal | Access token (interactive use only) |
 | [`rawtree_s3_ingestion`](docs/resources/s3_ingestion.md) | Batch + streaming ingestion from S3 via Glue, Lambda, and EventBridge | API key |
 | [`rawtree_supabase_cdc_ingestion`](docs/resources/supabase_cdc_ingestion.md) | Supabase Postgres CDC ingestion via ECS Fargate | API key |
 | [`rawtree_waf_ingestion`](docs/resources/waf_ingestion.md) | Real-time AWS WAF log streaming via Kinesis Data Firehose | API key |

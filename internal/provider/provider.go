@@ -20,7 +20,10 @@ import (
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/cluster"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/connector"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/database"
+	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/federation_issuer"
+	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/federation_rule"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/s3_ingestion"
+	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/service_account"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/supabase_cdc_ingestion"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/table"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/waf_ingestion"
@@ -75,8 +78,8 @@ func (p *RawtreeProvider) Metadata(_ context.Context, _ provider.MetadataRequest
 
 func (p *RawtreeProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "The RawTree provider manages RawTree databases, tables, API keys, workflows, clusters and connectors, " +
-			"and builds AWS pipelines that ingest S3, WAF, CloudFront and Supabase data into RawTree.",
+		Description: "The RawTree provider manages RawTree databases, tables, API keys, workflows, clusters, connectors, " +
+			"service accounts and workload federation, and builds AWS pipelines that ingest S3, WAF, CloudFront and Supabase data into RawTree.",
 		Attributes: map[string]schema.Attribute{
 			"api_key": schema.StringAttribute{
 				Optional:  true,
@@ -159,6 +162,9 @@ func (p *RawtreeProvider) Resources(_ context.Context) []func() resource.Resourc
 		cluster.NewResource,
 		connector.NewResource,
 		database.NewResource,
+		federation_issuer.NewResource,
+		federation_rule.NewResource,
+		service_account.NewResource,
 		table.NewResource,
 		workflow.NewResource,
 		cloudfront_ingestion.NewResource,
