@@ -137,25 +137,25 @@ func resourceSchema() schema.Schema {
 				Required:    true,
 			},
 			"allowed_audiences": schema.SetAttribute{
-				Description: "Exact audiences. A token must match one of them.",
+				Description: "Exact audiences, 1-16 entries of at most 2048 bytes. A token must match one of them.",
 				Required:    true,
 				ElementType: types.StringType,
 				Validators: []validator.Set{
-					setvalidator.SizeAtLeast(1),
-					setvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
+					setvalidator.SizeBetween(1, 16),
+					setvalidator.ValueStringsAre(stringvalidator.LengthBetween(1, 2048)),
 				},
 			},
 			"claim_conditions": schema.MapAttribute{
-				Description: "Exact matches on top-level string claims, for example sub or repository_id. All must match; no wildcards. 1-32 entries; iss, aud, exp, nbf, iat and jti are not allowed.",
+				Description: "Exact matches on top-level string claims, for example sub or repository_id. All must match; no wildcards. 1-32 entries; names of at most 128 bytes, values of at most 2048; iss, aud, exp, nbf, iat and jti are not allowed.",
 				Required:    true,
 				ElementType: types.StringType,
 				Validators: []validator.Map{
 					mapvalidator.SizeBetween(1, 32),
 					mapvalidator.KeysAre(
-						stringvalidator.LengthAtLeast(1),
+						stringvalidator.LengthBetween(1, 128),
 						stringvalidator.NoneOf("iss", "aud", "exp", "nbf", "iat", "jti"),
 					),
-					mapvalidator.ValueStringsAre(stringvalidator.LengthAtLeast(1)),
+					mapvalidator.ValueStringsAre(stringvalidator.LengthBetween(1, 2048)),
 				},
 			},
 			"principal_type": schema.StringAttribute{

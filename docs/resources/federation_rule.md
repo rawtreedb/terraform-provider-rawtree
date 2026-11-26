@@ -74,8 +74,8 @@ The workflow needs `permissions: id-token: write` to request a GitHub OIDC token
 
 - `name` (String) - Name. Lowercase letters and digits separated by single hyphens, 1-128 characters.
 - `issuer_id` (String) - ID of the federation issuer that signs the tokens.
-- `allowed_audiences` (Set of String) - Exact audiences. A token must match one of them.
-- `claim_conditions` (Map of String) - Exact matches on top-level string claims. All must match; no wildcards. 1-32 entries; `iss`, `aud`, `exp`, `nbf`, `iat` and `jti` are not allowed.
+- `allowed_audiences` (Set of String) - Exact audiences, 1-16 entries of at most 2048 bytes. A token must match one of them.
+- `claim_conditions` (Map of String) - Exact matches on top-level string claims. All must match; no wildcards. 1-32 entries; names of at most 128 bytes, values of at most 2048; `iss`, `aud`, `exp`, `nbf`, `iat` and `jti` are not allowed.
 - `principal_type` (String) - Identity the workload acts as: `service_account` or `user`.
 - `principal_id` (String) - ID of the service account (`rawtree_service_account.<name>.id`) or user.
 - `database` (String) - Default database for the workload. It does not restrict database-role grants.
