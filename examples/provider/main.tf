@@ -16,7 +16,22 @@ provider "rawtree" {
   database = "analytics" # optional, defaults to the API key's database
 }
 
+# Clusters, connectors, service accounts and federation need an access token
+# (user OAuth or session JWT) and an organization.
+# Environment variables: RAWTREE_ACCESS_TOKEN, RAWTREE_ORG, RAWTREE_CLUSTER.
+provider "rawtree" {
+  alias        = "admin"
+  access_token = var.rawtree_access_token
+  organization = "my-org"
+  cluster      = "production"
+}
+
 variable "rawtree_api_key" {
+  type      = string
+  sensitive = true
+}
+
+variable "rawtree_access_token" {
   type      = string
   sensitive = true
 }

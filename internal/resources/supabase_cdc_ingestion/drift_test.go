@@ -16,7 +16,7 @@ func TestModifyPlanProviderDrift(t *testing.T) {
 	t.Parallel()
 
 	r := &SupabaseCDCIngestionResource{
-		client: client.New("new-key", "https://new-api.example.com", "new-org", "", "new-project"),
+		client: client.New("new-key", "", "https://new-api.example.com", "new-org", "", "", "new-project"),
 	}
 
 	stateVals := testSupabaseStateValues("https://old-api.example.com", util.HashString("old-key"), "old-org", "old-project")

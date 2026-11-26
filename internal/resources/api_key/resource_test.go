@@ -83,7 +83,7 @@ func setup(t *testing.T) (*APIKeyResource, *fakeAPI, fwschema.Schema) {
 	api := &fakeAPI{}
 	srv := httptest.NewServer(api.handler(t))
 	t.Cleanup(srv.Close)
-	return &APIKeyResource{client: client.New("rt_test", srv.URL, "", "analytics", "")}, api, resourceSchema()
+	return &APIKeyResource{client: client.New("rt_test", "", srv.URL, "", "", "analytics", "")}, api, resourceSchema()
 }
 
 func nullRaw(s fwschema.Schema) tftypes.Value {

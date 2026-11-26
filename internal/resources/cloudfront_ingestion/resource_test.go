@@ -40,7 +40,7 @@ func TestKinesisStreamName(t *testing.T) {
 func TestEndpointURL(t *testing.T) {
 	t.Parallel()
 
-	c := client.New("rt_x", "https://api.rawtree.com", "", "", "")
+	c := client.New("rt_x", "", "https://api.rawtree.com", "", "", "", "")
 	fields := []string{"timestamp", "c-ip", "sc-status"}
 
 	expected := "https://api.rawtree.com/v1/tables/cf_logs?columns=timestamp%2Cc-ip%2Csc-status&database=analytics&transform=firehose"

@@ -2,7 +2,7 @@
 page_title: "RawTree Provider"
 subcategory: ""
 description: |-
-  Manage RawTree databases, tables, API keys and workflows, and ingest AWS data into RawTree.
+  Manage RawTree databases, tables, API keys, workflows, clusters, connectors and identity, and ingest AWS data into RawTree.
 ---
 
 # RawTree Provider
@@ -11,13 +11,24 @@ Use the RawTree provider to manage [RawTree](https://rawtree.com) resources and 
 
 ## Credentials
 
-The provider uses a RawTree API key (`rt_...`). The key selects its organization, cluster and default database.
+RawTree has two credential types. Each resource page tells which credential the resource needs.
+
+| Credential | Format | Use it for |
+|------------|--------|------------|
+| API key | `rt_...` | Databases, tables, API keys, workflows, and all AWS ingestion resources. The key selects its organization, cluster and default database. |
+| Access token | User JWT (OAuth access token or session token) | Clusters, connectors, service accounts, federation issuers and federation rules. API keys cannot manage these. |
+
+You can set both. Data-plane resources use the API key when it is set, else the access token.
+
+The access token must belong to a user who is an organization administrator. A user OAuth access token expires after 15 minutes. `rtree login` stores one as `token` in `~/.config/rtree/config.json` and the CLI refreshes it; the provider does not refresh it, so start `terraform apply` with a new token.
+
+Workload federation tokens (from `https://api.rawtree.com/oauth/token`) are not supported: the API rejects them on the endpoints that these resources use. Thus the access-token resources are for interactive use only: run them from a workstation, not in CI. The deletion of a `rawtree_service_account` also needs a first-party session token; the API rejects an OAuth access token for it.
 
 The provider resolves each value in this order:
 
 1. The provider block
-2. Environment variables: `RAWTREE_API_KEY`, `RAWTREE_API_URL`, `RAWTREE_DATABASE`
-3. The rtree CLI config file (`~/.config/rtree/config.json`): `token`, `url`, `database`
+2. Environment variables: `RAWTREE_API_KEY`, `RAWTREE_ACCESS_TOKEN`, `RAWTREE_API_URL`, `RAWTREE_ORG`, `RAWTREE_CLUSTER`, `RAWTREE_DATABASE`
+3. The rtree CLI config file (`~/.config/rtree/config.json`): `token` (the API key if it starts with `rt_`, else the access token), `url`, `default_organization`, `cluster`, `database`
 
 ## Example Usage
 

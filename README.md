@@ -1,6 +1,6 @@
 # Terraform Provider for RawTree
 
-Use this provider to manage [RawTree](https://rawtree.com) databases, tables, API keys and workflows, and to build AWS pipelines that ingest data into RawTree.
+Use this provider to manage [RawTree](https://rawtree.com) databases, tables, API keys, workflows and clusters, and to build AWS pipelines that ingest data into RawTree.
 
 ## Resources
 
@@ -10,6 +10,7 @@ Use this provider to manage [RawTree](https://rawtree.com) databases, tables, AP
 | [`rawtree_table`](docs/resources/table.md) | Table with sorting key, TTL and settings | API key |
 | [`rawtree_api_key`](docs/resources/api_key.md) | API key with a permission level or database roles | API key |
 | [`rawtree_workflow`](docs/resources/workflow.md) | Scheduled SQL query with table, HTTP and Slack sinks | API key |
+| [`rawtree_cluster`](docs/resources/cluster.md) | Cluster in an organization region | Access token (interactive use only) |
 | [`rawtree_s3_ingestion`](docs/resources/s3_ingestion.md) | Batch + streaming ingestion from S3 via Glue, Lambda, and EventBridge | API key |
 | [`rawtree_supabase_cdc_ingestion`](docs/resources/supabase_cdc_ingestion.md) | Supabase Postgres CDC ingestion via ECS Fargate | API key |
 | [`rawtree_waf_ingestion`](docs/resources/waf_ingestion.md) | Real-time AWS WAF log streaming via Kinesis Data Firehose | API key |
@@ -50,7 +51,7 @@ Use this provider to manage [RawTree](https://rawtree.com) databases, tables, AP
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) >= 1.0
 - [Go](https://golang.org/doc/install) >= 1.26 (to build the provider)
 - AWS credentials with the [required permissions](#required-aws-permissions) (ingestion resources only)
-- A [RawTree](https://rawtree.com) account with an API key (`rt_...`)
+- A [RawTree](https://rawtree.com) account with an API key (`rt_...`), and an access token for the access-token resources
 
 ## Installation
 
@@ -67,18 +68,28 @@ terraform {
 
 ## Authentication
 
-The provider uses a RawTree API key (`rt_...`). The key selects its organization, cluster and default database. Changes to databases, API keys and workflows need an `admin` key.
+RawTree has two credential types:
+
+- **API key** (`rt_...`): the key selects its organization, cluster and default database. Changes to databases, API keys and workflows need an `admin` key.
+- **Access token** (user OAuth access token or session token): required for clusters, connectors, service accounts and federation. A user OAuth token expires after 15 minutes and the provider does not refresh it. Workload federation tokens are not supported, so these resources are for interactive use only: run them from a workstation, not in CI.
 
 The provider resolves each value in this order:
 
 1. Provider configuration block
-2. Environment variables (`RAWTREE_API_KEY`, `RAWTREE_API_URL`, `RAWTREE_DATABASE`)
+2. Environment variables (`RAWTREE_API_KEY`, `RAWTREE_ACCESS_TOKEN`, `RAWTREE_API_URL`, `RAWTREE_ORG`, `RAWTREE_CLUSTER`, `RAWTREE_DATABASE`)
 3. rtree CLI config file (`~/.config/rtree/config.json`, created by `rtree login`)
 
 ```hcl
 provider "rawtree" {
   api_key  = var.rawtree_api_key # or set RAWTREE_API_KEY
   database = "analytics"         # optional, defaults to the API key's database
+}
+
+provider "rawtree" {
+  alias        = "admin"
+  access_token = var.rawtree_access_token # or set RAWTREE_ACCESS_TOKEN
+  organization = "my-org"                 # or set RAWTREE_ORG
+  cluster      = "production"             # or set RAWTREE_CLUSTER
 }
 ```
 
