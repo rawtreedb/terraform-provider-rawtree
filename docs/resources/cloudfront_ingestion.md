@@ -100,6 +100,7 @@ resource "rawtree_cloudfront_ingestion" "logs" {
 ## Important Notes
 
 - **Distribution attachment**: The resource modifies the distribution's default cache behavior to attach the real-time log config. If you manage the distribution with `aws_cloudfront_distribution`, add `lifecycle { ignore_changes = [default_cache_behavior[0].realtime_log_config_arn] }` to avoid conflicts.
+- **Deployment delay**: The resource does not wait for CloudFront to deploy the change to the distribution. CloudFront does not log requests until the distribution status is `Deployed` again, which can take some minutes after `terraform apply`.
 - **Resource names**: Names are auto-generated from the database and table with a hash suffix. Pipelines created by 0.1 keep their names. The `{name}` portion is max 40 characters.
 - **Kinesis stream mode**: The Kinesis Data Stream is created in On-Demand mode (auto-scales, no shard management required).
 - **CloudFront region**: The Kinesis stream and Firehose can be in any region, but `us-east-1` is recommended for lowest latency with CloudFront.
