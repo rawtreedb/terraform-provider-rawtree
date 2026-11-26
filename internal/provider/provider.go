@@ -18,6 +18,7 @@ import (
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/api_key"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/cloudfront_ingestion"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/cluster"
+	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/connector"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/database"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/s3_ingestion"
 	"github.com/rawtreedb/terraform-provider-rawtree/internal/resources/supabase_cdc_ingestion"
@@ -74,7 +75,7 @@ func (p *RawtreeProvider) Metadata(_ context.Context, _ provider.MetadataRequest
 
 func (p *RawtreeProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "The RawTree provider manages RawTree databases, tables, API keys, workflows and clusters, " +
+		Description: "The RawTree provider manages RawTree databases, tables, API keys, workflows, clusters and connectors, " +
 			"and builds AWS pipelines that ingest S3, WAF, CloudFront and Supabase data into RawTree.",
 		Attributes: map[string]schema.Attribute{
 			"api_key": schema.StringAttribute{
@@ -156,6 +157,7 @@ func (p *RawtreeProvider) Resources(_ context.Context) []func() resource.Resourc
 	return []func() resource.Resource{
 		api_key.NewResource,
 		cluster.NewResource,
+		connector.NewResource,
 		database.NewResource,
 		table.NewResource,
 		workflow.NewResource,
